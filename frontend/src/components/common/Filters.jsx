@@ -1,9 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Filter, X, ChevronDown, Search } from 'lucide-react';
-import { mockSuppliers } from '../../data/mockData';
+import { getAllSuppliers } from '../../services/statsService';
 
 export default function Filters({ filters, setFilters, type = 'orders' }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [suppliers, setSuppliers] = useState([]);
+
+  const fetchSuppliers = useCallback(async () => {
+    const result = await getAllSuppliers();
+    if (result.success) {
+      setSuppliers(result.data || []);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSuppliers();
+  }, [fetchSuppliers]);
 
   const hasActiveFilters = filters.supplier || filters.dateFrom || filters.dateTo || filters.status;
 
@@ -77,7 +89,7 @@ export default function Filters({ filters, setFilters, type = 'orders' }) {
                 className="input"
               >
                 <option value="">All Suppliers</option>
-                {mockSuppliers.map((supplier) => (
+                {suppliers.map((supplier) => (
                   <option key={supplier} value={supplier}>
                     {supplier}
                   </option>

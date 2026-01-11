@@ -1,10 +1,28 @@
+import { useState, useEffect } from 'react';
 import { Receipt, Calendar, DollarSign, CreditCard, Percent, Download, Edit, Trash2 } from 'lucide-react';
-import { formatCurrency, formatDate, formatDateTime, getStatusColor, mockInvoiceItems } from '../../data/mockData';
+import { getInvoiceItems } from '../../services/invoicesService';
+import { formatCurrency, formatDate, formatDateTime, getStatusColor } from '../../utils/dataTransformers';
+import { CardLoadingSpinner } from '../common/LoadingSpinner';
 
 export default function InvoiceDetail({ invoice, onClose, onEdit, onDelete }) {
-  if (!invoice) return null;
+  const [invoiceItems, setInvoiceItems] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const invoiceItems = mockInvoiceItems.filter(item => item.invoice_id === invoice.id);
+  useEffect(() => {
+    const fetchItems = async () => {
+      if (invoice?.id) {
+        setLoading(true);
+        const result = await getInvoiceItems(invoice.id);
+        if (result.success) {
+          setInvoiceItems(result.data || []);
+        }
+        setLoading(false);
+      }
+    };
+    fetchItems();
+  }, [invoice?.id]);
+
+  if (!invoice) return null;
 
   return (
     <div className="space-y-6">
@@ -85,7 +103,7 @@ export default function InvoiceDetail({ invoice, onClose, onEdit, onDelete }) {
           <div>
             <p className="text-sm text-gray-600">Tax Amount</p>
             <p className="text-2xl font-bold text-gray-900">
-              {formatCurrency(invoice.total_amount - invoice.net_amount)}
+              {formatCurrency((invoice.total_amount || 0) - (invoice.net_amount || 0))}
             </p>
           </div>
         </div>
@@ -101,7 +119,9 @@ export default function InvoiceDetail({ invoice, onClose, onEdit, onDelete }) {
           </button>
         </div>
         
-        {invoiceItems.length > 0 ? (
+        {loading ? (
+          <CardLoadingSpinner />
+        ) : invoiceItems.length > 0 ? (
           <div className="overflow-x-auto border border-gray-200 rounded-xl">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -143,7 +163,7 @@ export default function InvoiceDetail({ invoice, onClose, onEdit, onDelete }) {
                     Total
                   </td>
                   <td className="px-4 py-3 text-sm font-bold text-gray-900 text-right">
-                    {formatCurrency(invoiceItems.reduce((sum, item) => sum + item.amount, 0))}
+                    {formatCurrency(invoiceItems.reduce((sum, item) => sum + (item.amount || 0), 0))}
                   </td>
                 </tr>
               </tfoot>

@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Eye, Edit, Trash2, Download, CreditCard, Banknote } from 'lucide-react';
-import { mockInvoices, formatCurrency, formatDate, getStatusColor } from '../../data/mockData';
+import { getInvoices } from '../../services/invoicesService';
+import { formatCurrency, formatDate, getStatusColor } from '../../utils/dataTransformers';
+import supabase from '../../lib/supabase';
 import Pagination from '../common/Pagination';
+import LoadingSpinner, { TableLoadingSpinner } from '../common/LoadingSpinner';
+import { TableError } from '../common/ErrorMessage';
 
 export default function InvoicesTable({ 
   filters = {}, 
@@ -9,58 +13,117 @@ export default function InvoicesTable({
   onView, 
   onEdit, 
   onDelete,
-  showActions = true 
+  showActions = true,
+  disableRealtime = false
 }) {
+  const [invoices, setInvoices] = useState([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedRows, setSelectedRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const isFetchingRef = useRef(false);
+  
   const itemsPerPage = limit || 10;
 
-  // Filter invoices
-  let filteredInvoices = [...mockInvoices];
-  
-  if (filters.search) {
-    const search = filters.search.toLowerCase();
-    filteredInvoices = filteredInvoices.filter(invoice =>
-      invoice.supplier.toLowerCase().includes(search) ||
-      invoice.id.toLowerCase().includes(search)
-    );
-  }
-  
-  if (filters.supplier) {
-    filteredInvoices = filteredInvoices.filter(invoice => 
-      invoice.supplier === filters.supplier
-    );
-  }
-  
-  if (filters.status) {
-    filteredInvoices = filteredInvoices.filter(invoice => 
-      invoice.status === filters.status
-    );
-  }
-  
-  if (filters.dateFrom) {
-    filteredInvoices = filteredInvoices.filter(invoice => 
-      invoice.invoice_date >= filters.dateFrom
-    );
-  }
-  
-  if (filters.dateTo) {
-    filteredInvoices = filteredInvoices.filter(invoice => 
-      invoice.invoice_date <= filters.dateTo
-    );
-  }
+  // Create a stable filter key to prevent unnecessary re-renders
+  const filterKey = useMemo(() => {
+    return JSON.stringify({
+      supplier: filters.supplier || '',
+      status: filters.status || '',
+      dateFrom: filters.dateFrom || '',
+      dateTo: filters.dateTo || '',
+      search: filters.search || '',
+    });
+  }, [filters.supplier, filters.status, filters.dateFrom, filters.dateTo, filters.search]);
 
-  // Paginate
-  const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
-  const paginatedInvoices = limit
-    ? filteredInvoices.slice(0, limit)
-    : filteredInvoices.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  // Track last fetch parameters to prevent duplicate requests
+  const lastFetchParamsRef = useRef(null);
+
+  const fetchInvoices = useCallback(async () => {
+    // Prevent concurrent fetches
+    if (isFetchingRef.current) {
+      return;
+    }
+    
+    // Create a key for this fetch to prevent duplicate requests
+    const fetchKey = `${currentPage}-${itemsPerPage}-${filterKey}`;
+    if (lastFetchParamsRef.current === fetchKey) {
+      return; // Already fetched with these exact parameters
+    }
+    
+    isFetchingRef.current = true;
+    lastFetchParamsRef.current = fetchKey;
+    setLoading(true);
+    setError(null);
+    
+    const filterObj = JSON.parse(filterKey);
+    const result = await getInvoices({
+      page: currentPage,
+      limit: itemsPerPage,
+      supplier: filterObj.supplier,
+      status: filterObj.status,
+      dateFrom: filterObj.dateFrom,
+      dateTo: filterObj.dateTo,
+      search: filterObj.search,
+    });
+    
+    if (result.success) {
+      setInvoices(result.data.data || []);
+      setTotalCount(result.data.total || 0);
+    } else {
+      setError(result.error || 'Failed to load invoices');
+    }
+    
+    setLoading(false);
+    isFetchingRef.current = false;
+  }, [currentPage, itemsPerPage, filterKey]);
+
+  useEffect(() => {
+    fetchInvoices();
+  }, [fetchInvoices]);
+
+  // Real-time subscription - refetch when data changes
+  // Use a ref to prevent infinite loops and add debouncing
+  const fetchInvoicesRef = useRef(fetchInvoices);
+  fetchInvoicesRef.current = fetchInvoices;
+  const debounceTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (!disableRealtime && 
+        import.meta.env.VITE_ENABLE_REALTIME === 'true' && 
+        import.meta.env.VITE_USE_MOCK_DATA !== 'true') {
+      const unsubscribe = supabase
+        .channel('invoices-table-updates')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'invoices' }, () => {
+          // Debounce to prevent excessive requests
+          if (debounceTimerRef.current) {
+            clearTimeout(debounceTimerRef.current);
+          }
+          debounceTimerRef.current = setTimeout(() => {
+            if (!isFetchingRef.current) {
+              fetchInvoicesRef.current();
+            }
+          }, 2000); // Wait 2 seconds before refetching
+        })
+        .subscribe();
+
+      return () => {
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+        }
+        unsubscribe.unsubscribe();
+      };
+    }
+  }, [disableRealtime]);
+
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
 
   const toggleSelectAll = () => {
-    if (selectedRows.length === paginatedInvoices.length) {
+    if (selectedRows.length === invoices.length) {
       setSelectedRows([]);
     } else {
-      setSelectedRows(paginatedInvoices.map(i => i.id));
+      setSelectedRows(invoices.map(i => i.id));
     }
   };
 
@@ -70,8 +133,31 @@ export default function InvoicesTable({
     );
   };
 
+  if (loading && invoices.length === 0) {
+    return <TableLoadingSpinner />;
+  }
+
+  if (error) {
+    return <TableError message={error} onRetry={fetchInvoices} />;
+  }
+
+  if (!loading && invoices.length === 0) {
+    return (
+      <div className="text-center py-12 text-gray-500">
+        <p>No invoices found</p>
+      </div>
+    );
+  }
+
   return (
     <div>
+      {/* Loading overlay for refetching */}
+      {loading && invoices.length > 0 && (
+        <div className="absolute inset-0 bg-white/50 flex items-center justify-center z-10">
+          <LoadingSpinner size="sm" />
+        </div>
+      )}
+
       {/* Bulk Actions */}
       {selectedRows.length > 0 && (
         <div className="mb-4 p-3 bg-primary-50 border border-primary-200 rounded-lg flex items-center justify-between animate-fade-in">
@@ -92,7 +178,7 @@ export default function InvoicesTable({
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto relative">
         <table className="min-w-full divide-y divide-gray-200">
           <thead>
             <tr>
@@ -100,7 +186,7 @@ export default function InvoicesTable({
                 <th className="table-header w-10">
                   <input
                     type="checkbox"
-                    checked={selectedRows.length === paginatedInvoices.length && paginatedInvoices.length > 0}
+                    checked={selectedRows.length === invoices.length && invoices.length > 0}
                     onChange={toggleSelectAll}
                     className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
                   />
@@ -115,7 +201,7 @@ export default function InvoicesTable({
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {paginatedInvoices.map((invoice) => (
+            {invoices.map((invoice) => (
               <tr 
                 key={invoice.id} 
                 className={`hover:bg-gray-50 transition-colors ${
@@ -198,11 +284,11 @@ export default function InvoicesTable({
       </div>
 
       {/* Pagination */}
-      {!limit && filteredInvoices.length > 0 && (
+      {!limit && totalCount > 0 && (
         <Pagination
           currentPage={currentPage}
           totalPages={totalPages}
-          totalItems={filteredInvoices.length}
+          totalItems={totalCount}
           itemsPerPage={itemsPerPage}
           onPageChange={setCurrentPage}
         />

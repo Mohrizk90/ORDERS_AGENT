@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { mockSuppliers } from '../../data/mockData';
+import { useState, useEffect, useCallback } from 'react';
+import { getAllSuppliers } from '../../services/statsService';
+import { ButtonLoadingSpinner } from '../common/LoadingSpinner';
 
-export default function InvoiceForm({ invoice, onSubmit, onCancel }) {
+export default function InvoiceForm({ invoice, onSubmit, onCancel, isSubmitting = false }) {
+  const [suppliers, setSuppliers] = useState([]);
   const [formData, setFormData] = useState({
     supplier: invoice?.supplier || '',
     invoice_date: invoice?.invoice_date || new Date().toISOString().split('T')[0],
@@ -11,8 +13,18 @@ export default function InvoiceForm({ invoice, onSubmit, onCancel }) {
     financing_type: invoice?.financing_type || 'Credit',
     status: invoice?.status || 'Pending',
   });
-
   const [errors, setErrors] = useState({});
+
+  const fetchSuppliers = useCallback(async () => {
+    const result = await getAllSuppliers();
+    if (result.success) {
+      setSuppliers(result.data || []);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSuppliers();
+  }, [fetchSuppliers]);
 
   const validate = () => {
     const newErrors = {};
@@ -26,7 +38,12 @@ export default function InvoiceForm({ invoice, onSubmit, onCancel }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (validate()) {
-      onSubmit?.(formData);
+      onSubmit?.({
+        ...formData,
+        total_amount: parseFloat(formData.total_amount) || 0,
+        net_amount: parseFloat(formData.net_amount) || 0,
+        exchange_rate: parseFloat(formData.exchange_rate) || 1.0,
+      });
     }
   };
 
@@ -47,14 +64,26 @@ export default function InvoiceForm({ invoice, onSubmit, onCancel }) {
             value={formData.supplier}
             onChange={(e) => handleChange('supplier', e.target.value)}
             className={`input ${errors.supplier ? 'input-error' : ''}`}
+            disabled={isSubmitting}
           >
             <option value="">Select a supplier</option>
-            {mockSuppliers.map((supplier) => (
+            {suppliers.map((supplier) => (
               <option key={supplier} value={supplier}>
                 {supplier}
               </option>
             ))}
           </select>
+          <p className="text-xs text-gray-500 mt-1">
+            Or type a new supplier name:
+          </p>
+          <input
+            type="text"
+            value={formData.supplier}
+            onChange={(e) => handleChange('supplier', e.target.value)}
+            className={`input mt-2 ${errors.supplier ? 'input-error' : ''}`}
+            placeholder="Enter supplier name"
+            disabled={isSubmitting}
+          />
           {errors.supplier && (
             <p className="text-sm text-red-500 mt-1">{errors.supplier}</p>
           )}
@@ -68,6 +97,7 @@ export default function InvoiceForm({ invoice, onSubmit, onCancel }) {
             value={formData.invoice_date}
             onChange={(e) => handleChange('invoice_date', e.target.value)}
             className={`input ${errors.invoice_date ? 'input-error' : ''}`}
+            disabled={isSubmitting}
           />
           {errors.invoice_date && (
             <p className="text-sm text-red-500 mt-1">{errors.invoice_date}</p>
@@ -81,6 +111,7 @@ export default function InvoiceForm({ invoice, onSubmit, onCancel }) {
             value={formData.financing_type}
             onChange={(e) => handleChange('financing_type', e.target.value)}
             className="input"
+            disabled={isSubmitting}
           >
             <option value="Credit">Credit</option>
             <option value="Cash">Cash</option>
@@ -98,6 +129,7 @@ export default function InvoiceForm({ invoice, onSubmit, onCancel }) {
               onChange={(e) => handleChange('total_amount', e.target.value)}
               className={`input pl-8 ${errors.total_amount ? 'input-error' : ''}`}
               placeholder="0.00"
+              disabled={isSubmitting}
             />
           </div>
           {errors.total_amount && (
@@ -116,6 +148,7 @@ export default function InvoiceForm({ invoice, onSubmit, onCancel }) {
               onChange={(e) => handleChange('net_amount', e.target.value)}
               className="input pl-8"
               placeholder="0.00"
+              disabled={isSubmitting}
             />
           </div>
         </div>
@@ -129,6 +162,7 @@ export default function InvoiceForm({ invoice, onSubmit, onCancel }) {
             value={formData.exchange_rate}
             onChange={(e) => handleChange('exchange_rate', e.target.value)}
             className="input"
+            disabled={isSubmitting}
           />
         </div>
 
@@ -139,6 +173,7 @@ export default function InvoiceForm({ invoice, onSubmit, onCancel }) {
             value={formData.status}
             onChange={(e) => handleChange('status', e.target.value)}
             className="input"
+            disabled={isSubmitting}
           >
             <option value="Pending">Pending</option>
             <option value="Paid">Paid</option>
@@ -149,11 +184,27 @@ export default function InvoiceForm({ invoice, onSubmit, onCancel }) {
 
       {/* Actions */}
       <div className="flex justify-end gap-3 pt-6 border-t border-gray-200">
-        <button type="button" onClick={onCancel} className="btn btn-secondary">
+        <button 
+          type="button" 
+          onClick={onCancel} 
+          className="btn btn-secondary"
+          disabled={isSubmitting}
+        >
           Cancel
         </button>
-        <button type="submit" className="btn btn-primary">
-          {invoice ? 'Update Invoice' : 'Create Invoice'}
+        <button 
+          type="submit" 
+          className="btn btn-primary"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <>
+              <ButtonLoadingSpinner />
+              <span className="ml-2">Saving...</span>
+            </>
+          ) : (
+            invoice ? 'Update Invoice' : 'Create Invoice'
+          )}
         </button>
       </div>
     </form>
