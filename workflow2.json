@@ -1,0 +1,1320 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2640,
+        544
+      ],
+      "id": "a3ef2a66-11c5-45bd-bb11-9db9ac9327ca",
+      "name": "Telegram Trigger",
+      "webhookId": "b0de90d5-ef32-4c93-9109-46a60cf89a9c",
+      "credentials": {
+        "telegramApi": {
+          "id": "PZryKVefTk3HTXi2",
+          "name": "Order_DB_Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check for high-value transactions in AI output and send alerts\nconst items = $input.all();\nconst item = items[0];\nconst outputText = item?.json?.output?.toString() || '';\n\n// Check if output mentions order/invoice creation with high amounts\nconst amountMatch = outputText.match(/(\\d{1,3}(?:,\\d{3})*(?:\\.\\d{2})?|\\d+)/g);\nlet highValueDetected = false;\nlet amount = 0;\n\nif (amountMatch) {\n  for (const match of amountMatch) {\n    const num = parseFloat(match.replace(/,/g, ''));\n    if (num >= 50000) {\n      highValueDetected = true;\n      amount = num;\n      break;\n    }\n  }\n}\n\n// Check if this was a create operation\nconst isCreate = outputText.toLowerCase().includes('created') || \n                 outputText.toLowerCase().includes('new order') ||\n                 outputText.toLowerCase().includes('new invoice');\n\nreturn [{\n  json: {\n    has_alert: highValueDetected && isCreate,\n    amount: amount,\n    original_output: outputText\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1168,
+        -16
+      ],
+      "id": "e99a6d87-02b9-4fe0-b8d3-1f735a705530",
+      "name": "Check_High_Value_Alert"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-alert",
+              "leftValue": "={{ $json.has_alert }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -864,
+        -16
+      ],
+      "id": "c1bbddea-6de6-4faf-b824-bef89712c2bb",
+      "name": "If High Value Alert"
+    },
+    {
+      "parameters": {
+        "url": "https://toaqbnozgasedwfcimch.supabase.co/rest/v1/alert_thresholds?alert_type=in.(high_value_order,high_value_invoice)&is_active=eq.true",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -592,
+        -32
+      ],
+      "id": "40a4485d-8f7e-464a-ac25-d96063fc7c3f",
+      "name": "Get_Alert_Recipients",
+      "credentials": {
+        "supabaseApi": {
+          "id": "QP0Lvhh4TcXvEl3C",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare alert message and recipients\nconst checkData = $('Check_High_Value_Alert').first().json;\nconst alertConfig = $input.first().json;\n\nconst amount = checkData.amount || 0;\nconst recipients = [];\n\n// Collect all notify IDs from alert configs\nif (Array.isArray(alertConfig)) {\n  for (const config of alertConfig) {\n    if (config.notify_telegram_ids) {\n      recipients.push(...config.notify_telegram_ids);\n    }\n  }\n} else if (alertConfig.notify_telegram_ids) {\n  recipients.push(...alertConfig.notify_telegram_ids);\n}\n\n// Remove duplicates\nconst uniqueRecipients = [...new Set(recipients)];\n\nif (uniqueRecipients.length === 0) {\n  return [{ json: { skip: true } }];\n}\n\nconst alertMessage = `🚨 *HIGH-VALUE ALERT*\\n\\nA transaction of ${amount.toLocaleString()} has been created.\\n\\nThis exceeds the configured threshold.\\n\\nPlease review this transaction.`;\n\nreturn uniqueRecipients.map(id => ({\n  json: {\n    chat_id: id,\n    message: alertMessage\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        -32
+      ],
+      "id": "e0b0d5c6-f98b-4fa4-8023-fed11a41fe08",
+      "name": "Prepare_Alert_Message"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-skip",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -192,
+        -32
+      ],
+      "id": "af7af7af-0160-42a9-8eb1-8b7c778b00ce",
+      "name": "If Has Alert Recipients"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.message }}",
+        "additionalFields": {
+          "parse_mode": "Markdown",
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        192,
+        -48
+      ],
+      "id": "a1bd8fca-dba0-413c-9d14-f9a68e25a598",
+      "name": "Send_High_Value_Alert",
+      "webhookId": "8765470a-f8c1-47f6-87ea-a8063a308691",
+      "credentials": {
+        "telegramApi": {
+          "id": "PZryKVefTk3HTXi2",
+          "name": "Order_DB_Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.message.text }}",
+        "options": {
+          "systemMessage": "FMC Operations Assistant. Query/Create/Edit/Delete/Export orders, order_items, invoices, invoice_items.\n\n🔴 CRITICAL PAGINATION WORKFLOW:\nStep 1: Count first (Count_Records with type), then Get_Records with offset=0\nStep 2: \"next\" → offset + 10, \"previous\" → max(0, offset - 10)\n⚠️ ALWAYS call the tool again for next/previous!\n\nTOOLS OVERVIEW:\n\n📖 READ Tools:\n• Count_Records: {type: 'order'|'invoice'} → get total counts\n• Get_Records: {type: 'order'|'invoice', supplier?, date_from?, date_to?, offset} → max 10\n• Get_Record_Items: {type: 'order'|'invoice', record_id} → get line items\n• Search_Record: {type: 'order'|'invoice', id} → fast UUID lookup\n• Get_Alert_Thresholds: get active alert configs\n\n📊 ANALYTICS Tools:\n• RPC: {date_from?, date_to?} → get monthly totals for orders AND invoices\n  - Use for: 'monthly totals', 'analytics', 'monthly summary' requests\n  - Returns aggregated monthly data - format clearly with month names\n  - Default date range: all time if not specified\n\n➕ CREATE Tools:\n• Create_Record: {type: 'order'|'invoice', supplier (required), date?, total_amount?, net_amount?, ...}\n  - For orders: source_channel?\n  - For invoices: exchange_rate?, financing_type?\n\n✏️ UPDATE Tools:\n• Update_Record: {type: 'order'|'invoice', id, ...fields to update}\n• Update_Record_Item: {type: 'order'|'invoice', id, ...fields to update}\n\n🗑️ DELETE Tools (CONFIRM FIRST):\n• Delete_Record: {type: 'order'|'invoice', id}\n• Delete_Record_Item: {type: 'order'|'invoice', id}\n• Show record, ask \"Type YES to confirm\", then delete\n\n📦 BULK Operations:\n• Bulk_Update_Records: {type: 'order'|'invoice', ids: [uuid array], ...fields}\n• Bulk_Delete_Records: {type: 'order'|'invoice', ids: [uuid array]} - REQUIRES CONFIRMATION\n\n🚨 HIGH-VALUE ALERTS:\n• When creating orders/invoices with total_amount > 50,000, mention it's a high-value transaction\n• Use Get_Alert_Thresholds to check current threshold settings\n\n📥 EXPORT RULES:\n• Output ONLY the marker line (no extra text):\n  [EXPORT_ORDERS] or [EXPORT_INVOICES]\n• With filters: [EXPORT_ORDERS supplier=Acme from=2024-01-01 to=2024-12-31]\n\n📈 CHARTS:\n• Step 1: Call RPC tool to get monthly data\n• Step 2: Output ONLY the chart marker (no other text)\n\nSingle dataset (orders OR invoices):\n[CHART_GENERATED]{\"chart_type\":\"bar\",\"chart_title\":\"Monthly Orders\",\"chart_labels\":[\"Jan 2024\",\"Dec 2024\"],\"chart_data\":[386000,30000],\"chart_caption\":\"Order totals\"}\n\nComparison chart (orders AND invoices - blue vs red):\n[CHART_GENERATED]{\"chart_type\":\"bar\",\"chart_title\":\"Orders vs Invoices\",\"chart_labels\":[\"Jan 2024\",\"Dec 2024\"],\"chart_data_orders\":[386000,30000],\"chart_data_invoices\":[542000,60000],\"chart_caption\":\"Comparison\"}\n\n⚠️ CHART RULES:\n- Output ONLY the marker line, no text before or after\n- chart_type: \"bar\", \"line\", or \"pie\"\n- Arrays must have same length\n- Use chart_data for single dataset, OR chart_data_orders + chart_data_invoices for comparison\n\nDATES: Parse natural language. RESPONSE: Plain text, numbers with commas."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -1760,
+        544
+      ],
+      "id": "5eb7564d-47fc-43ba-b8b4-123c61539fcc",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://toaqbnozgasedwfcimch.supabase.co/rest/v1/' + ($json.type === 'invoice' ? 'invoices' : 'orders') + '?select=id,supplier,' + ($json.type === 'invoice' ? 'invoice_date' : 'order_date') + ',total_amount,net_amount' + ($json.type === 'invoice' ? ',exchange_rate,financing_type' : ',source_channel') + '&order=' + ($json.type === 'invoice' ? 'invoice_date' : 'order_date') + '.desc&limit=10&offset=' + ($json.offset || 0) + ($json.supplier ? '&supplier=ilike.*' + $json.supplier + '*' : '') + ($json.date_from ? '&' + ($json.type === 'invoice' ? 'invoice_date' : 'order_date') + '=gte.' + $json.date_from : '') + ($json.date_to ? '&' + ($json.type === 'invoice' ? 'invoice_date' : 'order_date') + '=lte.' + $json.date_to : '') }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -1248,
+        1120
+      ],
+      "id": "480c6c83-b728-4e03-9bc0-622cc2df162e",
+      "name": "Get_Records",
+      "credentials": {
+        "supabaseApi": {
+          "id": "QP0Lvhh4TcXvEl3C",
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Retrieves up to 10 orders or invoices with pagination. Parameters: type ('order' or 'invoice', required), offset (default 0), supplier (optional filter), date_from (optional), date_to (optional)."
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://toaqbnozgasedwfcimch.supabase.co/rest/v1/' + ($json.type === 'invoice' ? 'invoice_items' : 'order_items') + '?select=*&' + ($json.type === 'invoice' ? 'invoice_id' : 'order_id') + '=eq.' + $json.record_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -1088,
+        1120
+      ],
+      "id": "4360d61b-f805-4dc1-9ba3-740e793ae009",
+      "name": "Get_Record_Items",
+      "credentials": {
+        "supabaseApi": {
+          "id": "QP0Lvhh4TcXvEl3C",
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Retrieves line items for a given order or invoice. Parameters: type ('order' or 'invoice', required), record_id (the order_id or invoice_id)."
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://toaqbnozgasedwfcimch.supabase.co/rest/v1/' + ($json.type === 'invoice' ? 'invoices' : 'orders') + '?select=count' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Prefer",
+              "value": "count=exact"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -1408,
+        1120
+      ],
+      "id": "084bab83-cf95-450b-a374-4f603eaa7ef4",
+      "name": "Count_Records",
+      "credentials": {
+        "supabaseApi": {
+          "id": "QP0Lvhh4TcXvEl3C",
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Returns total count of orders or invoices. Parameters: type ('order' or 'invoice', required). Use this before pagination to know total records."
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.from.id }}",
+        "text": "={{ (() => { let text = $json.output || ''; /* Remove export markers */ text = text.replace(/\\[?EXPORT_(ORDERS|INVOICES)\\]?[\\s\\S]*/gi, '').trim(); /* Remove chart markers and JSON */ text = text.replace(/\\[?CHART_?GENERATED\\]?\\s*\\{[^}]*\\}/gi, '').trim(); text = text.replace(/CHART_?GENERATED[\\s\\S]*$/gi, '').trim(); /* Clean up tool output prefixes */ if (text.includes('Used tools:')) { const markers = ['Showing', 'Here are', 'There are', 'Order', 'Invoice', 'No ', 'I ', 'Generating', 'Export', 'Monthly', 'For']; for (const m of markers) { const idx = text.indexOf(m); if (idx > 0) { text = text.substring(idx).trim(); break; } } } /* Remove any remaining JSON-like data */ text = text.replace(/\\{[^}]*chart[^}]*\\}/gi, '').trim(); text = text.replace(/\\{\"(id|records|type)\":[^}]+\\}/g, '').trim(); /* If only chart was requested, return empty to avoid duplicate message */ if (!text || text.length < 5) return ''; return text; })() }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -656,
+        688
+      ],
+      "id": "227c0d1b-8a1a-4b72-97ce-15c2fd1cc2bd",
+      "name": "Send a text message",
+      "webhookId": "24f34dfc-c86d-4718-a139-2c8761cd64eb",
+      "credentials": {
+        "telegramApi": {
+          "id": "PZryKVefTk3HTXi2",
+          "name": "Order_DB_Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.message.from.id }}",
+        "contextWindowLength": 8
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -1920,
+        944
+      ],
+      "id": "fa685246-0015-4c2c-a99f-8ffcac1a12a3",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4.1-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -2048,
+        944
+      ],
+      "id": "f6ebb88b-7c8f-4378-9867-3bb480739c29",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "ZJ1vTiYLRTpNJPuF",
+          "name": "GPT_API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://toaqbnozgasedwfcimch.supabase.co/rest/v1/rpc/analytics_monthly_totals",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ '{\"date_from\":\"' + ($json.date_from || '2000-01-01') + '\",\"date_to\":\"' + ($json.date_to || '2100-01-01') + '\"}' }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -1792,
+        1120
+      ],
+      "id": "a84c8395-9014-4074-b255-6971c6df64d2",
+      "name": "RPC",
+      "credentials": {
+        "supabaseApi": {
+          "id": "QP0Lvhh4TcXvEl3C",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://45.55.244.195/api/dataset",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "metabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({\n  \"database\": 2,\n  \"type\": \"native\",\n  \"native\": {\n    \"query\": $json.sql_query\n  }\n}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -1616,
+        1120
+      ],
+      "id": "82ea9189-68b5-4737-83bc-af2a089c87da",
+      "name": "Execute_Metabase_SQL",
+      "credentials": {
+        "metabaseApi": {
+          "id": "1aQbOPe105UGdMp0",
+          "name": "Metabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract chart parameters from AI Agent output - flexible format handling\nconst items = $input.all();\nconst item = items[0];\n\nlet chartParams = null;\n\nif (item && item.json && item.json.output) {\n  const outputText = item.json.output.toString();\n  \n  // Check for chart marker (with or without brackets)\n  if (outputText.includes('CHART_GENERATED') || outputText.includes('CHARTGENERATED')) {\n    // Find all JSON objects in the output\n    const jsonMatches = outputText.match(/\\{[^{}]*\\}/g) || [];\n    \n    for (const jsonStr of jsonMatches) {\n      try {\n        const parsed = JSON.parse(jsonStr);\n        // Check if it has chart-related keys (with or without underscores)\n        if (parsed.chart_type || parsed.charttype || parsed.chart_labels || parsed.chartlabels) {\n          chartParams = {\n            chart_type: parsed.chart_type || parsed.charttype || 'bar',\n            chart_title: parsed.chart_title || parsed.charttitle || 'Chart',\n            chart_labels: parsed.chart_labels || parsed.chartlabels || [],\n            chart_data: parsed.chart_data || parsed.chartdata || [],\n            chart_data_orders: parsed.chart_data_orders || parsed.chartdataorders || null,\n            chart_data_invoices: parsed.chart_data_invoices || parsed.chartdatainvoices || null,\n            chart_caption: parsed.chart_caption || parsed.chartcaption || parsed.chart_title || parsed.charttitle || 'Chart'\n          };\n          break;\n        }\n      } catch (e) { continue; }\n    }\n    \n    // If no valid JSON, try regex extraction\n    if (!chartParams) {\n      const typeMatch = outputText.match(/[\"'](chart_?type)[\"']\\s*:\\s*[\"']([^\"']+)[\"']/i);\n      const titleMatch = outputText.match(/[\"'](chart_?title)[\"']\\s*:\\s*[\"']([^\"']+)[\"']/i);\n      const labelsMatch = outputText.match(/[\"'](chart_?labels)[\"']\\s*:\\s*\\[([^\\]]+)\\]/i);\n      const dataMatch = outputText.match(/[\"'](chart_?data)[\"']\\s*:\\s*\\[([^\\]]+)\\]/i);\n      const ordersMatch = outputText.match(/[\"'](chart_?data_?orders)[\"']\\s*:\\s*\\[([^\\]]+)\\]/i);\n      const invoicesMatch = outputText.match(/[\"'](chart_?data_?invoices)[\"']\\s*:\\s*\\[([^\\]]+)\\]/i);\n      const captionMatch = outputText.match(/[\"'](chart_?caption)[\"']\\s*:\\s*[\"']([^\"']+)[\"']/i);\n      \n      if (labelsMatch) {\n        chartParams = { chart_type: 'bar', chart_title: 'Chart', chart_labels: [], chart_data: [] };\n        if (typeMatch) chartParams.chart_type = typeMatch[2];\n        if (titleMatch) chartParams.chart_title = titleMatch[2];\n        if (captionMatch) chartParams.chart_caption = captionMatch[2];\n        try { chartParams.chart_labels = JSON.parse('[' + labelsMatch[2] + ']'); } catch(e) { chartParams.chart_labels = labelsMatch[2].split(',').map(s => s.trim().replace(/[\"']/g, '')); }\n        if (dataMatch) { try { chartParams.chart_data = JSON.parse('[' + dataMatch[2] + ']').map(Number); } catch(e) {} }\n        if (ordersMatch) { try { chartParams.chart_data_orders = JSON.parse('[' + ordersMatch[2] + ']').map(Number); } catch(e) {} }\n        if (invoicesMatch) { try { chartParams.chart_data_invoices = JSON.parse('[' + invoicesMatch[2] + ']').map(Number); } catch(e) {} }\n      }\n    }\n  }\n}\n\nif (chartParams && chartParams.chart_labels && chartParams.chart_labels.length > 0) {\n  // Determine if we have dual datasets\n  const hasOrders = chartParams.chart_data_orders && chartParams.chart_data_orders.length > 0;\n  const hasInvoices = chartParams.chart_data_invoices && chartParams.chart_data_invoices.length > 0;\n  const hasSingleData = chartParams.chart_data && chartParams.chart_data.length > 0;\n  \n  return [{\n    json: {\n      has_chart: true,\n      chart_type: chartParams.chart_type || 'bar',\n      chart_title: chartParams.chart_title || 'Chart',\n      chart_labels: chartParams.chart_labels,\n      chart_data: hasSingleData ? chartParams.chart_data : (hasOrders ? chartParams.chart_data_orders : []),\n      chart_data_orders: hasOrders ? chartParams.chart_data_orders : null,\n      chart_data_invoices: hasInvoices ? chartParams.chart_data_invoices : null,\n      chart_caption: chartParams.chart_caption || chartParams.chart_title || 'Chart',\n      dual_dataset: hasOrders && hasInvoices\n    }\n  }];\n}\n\nreturn [{ json: { has_chart: false } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1168,
+        240
+      ],
+      "id": "7bf5a7a3-9858-47d0-861f-c0c797026842",
+      "name": "Extract Chart Parameters"
+    },
+    {
+      "parameters": {
+        "url": "={{ (() => {\n  const chartType = $json.chart_type || 'bar';\n  const labels = $json.chart_labels || [];\n  const title = $json.chart_title || 'Chart';\n  const hasDual = $json.dual_dataset && $json.chart_data_orders && $json.chart_data_invoices;\n  \n  let datasets = [];\n  \n  if (hasDual) {\n    datasets = [\n      {\n        label: 'Orders',\n        data: $json.chart_data_orders || [],\n        backgroundColor: chartType === 'line' ? 'rgba(54, 162, 235, 0.2)' : 'rgba(54, 162, 235, 0.8)',\n        borderColor: 'rgba(54, 162, 235, 1)',\n        borderWidth: chartType === 'line' ? 3 : 1\n      },\n      {\n        label: 'Invoices',\n        data: $json.chart_data_invoices || [],\n        backgroundColor: chartType === 'line' ? 'rgba(255, 99, 132, 0.2)' : 'rgba(255, 99, 132, 0.8)',\n        borderColor: 'rgba(255, 99, 132, 1)',\n        borderWidth: chartType === 'line' ? 3 : 1\n      }\n    ];\n  } else {\n    datasets = [{\n      label: title,\n      data: $json.chart_data || [],\n      backgroundColor: chartType === 'pie' ? [\n        'rgba(54, 162, 235, 0.8)',\n        'rgba(255, 99, 132, 0.8)',\n        'rgba(75, 192, 192, 0.8)',\n        'rgba(255, 206, 86, 0.8)',\n        'rgba(153, 102, 255, 0.8)',\n        'rgba(255, 159, 64, 0.8)'\n      ] : 'rgba(54, 162, 235, 0.8)',\n      borderColor: 'rgba(54, 162, 235, 1)',\n      borderWidth: chartType === 'line' ? 3 : 1\n    }];\n  }\n  \n  const chartConfig = {\n    type: chartType,\n    data: { labels: labels, datasets: datasets },\n    options: {\n      title: { display: true, text: title, fontSize: 18, fontStyle: 'bold' },\n      legend: { display: true },\n      scales: chartType !== 'pie' ? { yAxes: [{ ticks: { beginAtZero: true } }] } : undefined\n    }\n  };\n  \n  return 'https://quickchart.io/chart?c=' + encodeURIComponent(JSON.stringify(chartConfig)) + '&width=900&height=500&backgroundColor=white&format=png';\n})() }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "chart_image"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -592,
+        224
+      ],
+      "id": "0d02348a-c8fb-49db-815d-b7180266cea1",
+      "name": "Generate_Chart_Image"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Preserve chart metadata (caption, title) with binary image\n// Merge binary from Generate_Chart_Image with JSON from Extract Chart Parameters\nconst currentItems = $input.all();\nconst extractParamsData = $('Extract Chart Parameters').all();\n\nconst result = [];\n\nfor (let i = 0; i < currentItems.length; i++) {\n  const currentItem = currentItems[i];\n  const paramItem = extractParamsData[i] || extractParamsData[0] || {};\n  \n  // Get metadata from Extract Chart Parameters node\n  const chartCaption = paramItem.json?.chart_caption || paramItem.json?.chart_title || 'Chart';\n  const chartTitle = paramItem.json?.chart_title || 'Chart';\n  \n  result.push({\n    json: {\n      chart_caption: chartCaption,\n      chart_title: chartTitle\n    },\n    binary: currentItem.binary || {}\n  });\n}\n\nreturn result;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -352,
+        224
+      ],
+      "id": "3aa83f85-338c-424e-9880-14f1e03916f3",
+      "name": "Preserve Chart Metadata"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if chart binary exists from Generate_Chart_Image node\n// Only outputs if binary exists, otherwise stops the flow\nconst items = $input.all();\n\nlet chartImage = null;\nlet chartCaption = 'Chart';\n\n// Check input items for binary chart_image\nfor (const item of items) {\n  if (item.binary && item.binary.chart_image) {\n    chartImage = item.binary.chart_image;\n    if (item.json && item.json.chart_caption) {\n      chartCaption = item.json.chart_caption;\n    } else if (item.json && item.json.chart_title) {\n      chartCaption = item.json.chart_title;\n    }\n    break;\n  }\n}\n\n// Only return output if chart exists, otherwise return empty to stop flow\nif (chartImage) {\n  return [{\n    json: {\n      has_chart: true,\n      chart_caption: chartCaption\n    },\n    binary: {\n      chart_image: chartImage\n    }\n  }];\n}\n\n// Return empty array to stop the flow (no chart to send)\nreturn [];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        224
+      ],
+      "id": "f9c173e7-038c-4398-95e5-3db4b354aab0",
+      "name": "Check for Chart"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.has_chart }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -864,
+        240
+      ],
+      "id": "b5bc8ea7-01e4-4b15-840e-9af7b29fdb37",
+      "name": "If Chart Needed"
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "={{ $('Telegram Trigger').item.json.message.from.id }}",
+        "binaryData": true,
+        "binaryPropertyName": "chart_image",
+        "additionalFields": {
+          "caption": "={{ $json.chart_caption || 'Chart' }}"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        208,
+        224
+      ],
+      "id": "f98879c2-64b5-4407-b67d-b138d956f224",
+      "name": "Send Chart Photo",
+      "webhookId": "2b591f7d-00d9-411d-a6c6-b47376ee5976",
+      "credentials": {
+        "telegramApi": {
+          "id": "PZryKVefTk3HTXi2",
+          "name": "Order_DB_Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://toaqbnozgasedwfcimch.supabase.co/rest/v1/' + ($json.type === 'invoice' ? 'invoices' : 'orders') + '?id=eq.' + $json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.fromEntries(Object.entries({ supplier: $json.supplier, [($json.type === 'invoice' ? 'invoice_date' : 'order_date')]: $json.date, total_amount: $json.total_amount, net_amount: $json.net_amount, source_channel: $json.type !== 'invoice' ? $json.source_channel : undefined, exchange_rate: $json.type === 'invoice' ? $json.exchange_rate : undefined, financing_type: $json.type === 'invoice' ? $json.financing_type : undefined }).filter(([k, v]) => v !== undefined && v !== null && v !== ''))) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -944,
+        1120
+      ],
+      "id": "1691324f-ff17-4c0b-8041-fb0e3fde280e",
+      "name": "Update_Record",
+      "credentials": {
+        "supabaseApi": {
+          "id": "QP0Lvhh4TcXvEl3C",
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Updates an order or invoice by id. Parameters: type ('order' or 'invoice', required), id (required), plus any fields to update."
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://toaqbnozgasedwfcimch.supabase.co/rest/v1/' + ($json.type === 'invoice' ? 'invoice_items' : 'order_items') + '?id=eq.' + $json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.fromEntries(Object.entries({ product_code: $json.product_code, item_id: $json.item_id, description: $json.description, units: $json.units, unit_price: $json.unit_price, batch_number: $json.batch_number, amount: $json.amount }).filter(([k, v]) => v !== undefined && v !== null && v !== ''))) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -784,
+        1120
+      ],
+      "id": "2e7bb23c-9c53-4dc3-8be0-4ed38757c5b0",
+      "name": "Update_Record_Item",
+      "credentials": {
+        "supabaseApi": {
+          "id": "QP0Lvhh4TcXvEl3C",
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Updates an order item or invoice item by id. Parameters: type ('order' or 'invoice', required), id (required), plus any fields to update."
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ 'https://toaqbnozgasedwfcimch.supabase.co/rest/v1/' + ($json.type === 'invoice' ? 'invoices' : 'orders') + '?id=eq.' + $json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -640,
+        1120
+      ],
+      "id": "adb2bcdd-77b7-479d-a72c-ec7ff8daa0cb",
+      "name": "Delete_Record",
+      "credentials": {
+        "supabaseApi": {
+          "id": "QP0Lvhh4TcXvEl3C",
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Deletes an order or invoice by id. CASCADE will delete related items. Always confirm with user before calling. Parameters: type ('order' or 'invoice', required), id (required)."
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ 'https://toaqbnozgasedwfcimch.supabase.co/rest/v1/' + ($json.type === 'invoice' ? 'invoice_items' : 'order_items') + '?id=eq.' + $json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -480,
+        1120
+      ],
+      "id": "18d326e9-9af1-4ae3-95dc-01f2608eb45b",
+      "name": "Delete_Record_Item",
+      "credentials": {
+        "supabaseApi": {
+          "id": "QP0Lvhh4TcXvEl3C",
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Deletes an order item or invoice item by id. Always confirm with user before calling. Parameters: type ('order' or 'invoice', required), id (required)."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://toaqbnozgasedwfcimch.supabase.co/rest/v1/' + ($json.type === 'invoice' ? 'invoices' : 'orders') }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.type === 'invoice' ? { supplier: $json.supplier, invoice_date: $json.date || new Date().toISOString().split('T')[0], total_amount: $json.total_amount || 0, net_amount: $json.net_amount || 0, exchange_rate: $json.exchange_rate || 1, financing_type: $json.financing_type || 'Credit' } : { supplier: $json.supplier, order_date: $json.date || new Date().toISOString().split('T')[0], total_amount: $json.total_amount || 0, net_amount: $json.net_amount || 0, source_channel: $json.source_channel || 'Chat' }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -320,
+        1120
+      ],
+      "id": "14ced3f5-46ae-4c1a-8946-f4fc38678162",
+      "name": "Create_Record",
+      "credentials": {
+        "supabaseApi": {
+          "id": "QP0Lvhh4TcXvEl3C",
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Creates a new order or invoice. Parameters: type ('order' or 'invoice', required), supplier (required), date (defaults to today), total_amount, net_amount. For orders: source_channel. For invoices: exchange_rate, financing_type."
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://toaqbnozgasedwfcimch.supabase.co/rest/v1/' + ($json.type === 'invoice' ? 'invoices' : 'orders') + '?id=eq.' + $json.id + '&select=*' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -176,
+        1120
+      ],
+      "id": "d6b6d917-b7e3-47df-9387-f5556f8c3c8c",
+      "name": "Search_Record",
+      "credentials": {
+        "supabaseApi": {
+          "id": "QP0Lvhh4TcXvEl3C",
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Searches for an order or invoice by ID (UUID). Returns full record details. Parameters: type ('order' or 'invoice', required), id (required)."
+    },
+    {
+      "parameters": {
+        "url": "https://toaqbnozgasedwfcimch.supabase.co/rest/v1/alert_thresholds?is_active=eq.true",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        -16,
+        1120
+      ],
+      "id": "34470a30-7a45-4f0c-9a12-d20a7a6f189c",
+      "name": "Get_Alert_Thresholds",
+      "credentials": {
+        "supabaseApi": {
+          "id": "QP0Lvhh4TcXvEl3C",
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Gets active alert thresholds. Returns alert_type, threshold_amount, notify_telegram_ids."
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ 'https://toaqbnozgasedwfcimch.supabase.co/rest/v1/' + ($json.type === 'invoice' ? 'invoices' : 'orders') + '?id=in.(' + ($json.ids || []).join(',') + ')' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify(Object.fromEntries(Object.entries({ supplier: $json.supplier, [($json.type === 'invoice' ? 'invoice_date' : 'order_date')]: $json.date, total_amount: $json.total_amount, net_amount: $json.net_amount, source_channel: $json.type !== 'invoice' ? $json.source_channel : undefined, exchange_rate: $json.type === 'invoice' ? $json.exchange_rate : undefined, financing_type: $json.type === 'invoice' ? $json.financing_type : undefined }).filter(([k, v]) => v !== undefined && v !== null && v !== ''))) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        176,
+        1120
+      ],
+      "id": "00d7e73f-594c-4dd2-9061-5fb86085d134",
+      "name": "Bulk_Update_Records",
+      "credentials": {
+        "supabaseApi": {
+          "id": "QP0Lvhh4TcXvEl3C",
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Bulk updates multiple orders or invoices. Parameters: type ('order' or 'invoice', required), ids (array of UUIDs, required), plus fields to update."
+    },
+    {
+      "parameters": {
+        "method": "DELETE",
+        "url": "={{ 'https://toaqbnozgasedwfcimch.supabase.co/rest/v1/' + ($json.type === 'invoice' ? 'invoices' : 'orders') + '?id=in.(' + ($json.ids || []).join(',') + ')' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.3,
+      "position": [
+        384,
+        1120
+      ],
+      "id": "529d0871-3ea1-4565-b619-804b8b79c861",
+      "name": "Bulk_Delete_Records",
+      "credentials": {
+        "supabaseApi": {
+          "id": "QP0Lvhh4TcXvEl3C",
+          "name": "Supabase account"
+        }
+      },
+      "notes": "Bulk deletes multiple orders or invoices. CASCADE will delete related items. REQUIRES CONFIRMATION. Parameters: type ('order' or 'invoice', required), ids (array of UUIDs, required)."
+    },
+    {
+      "parameters": {
+        "operation": "sendDocument",
+        "chatId": "={{ $('Telegram Trigger').first().json.message.from.id }}",
+        "binaryData": true,
+        "additionalFields": {
+          "caption": "={{ 'Exported ' + ($json.record_count || 0) + ' ' + ($json.export_type || 'records') }}"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1408,
+        528
+      ],
+      "id": "41ae6877-7162-4d7f-b148-e623e3371da7",
+      "name": "Send_Export_File",
+      "webhookId": "b5ba3f8b-65d5-45f9-92c6-80a2a06d4b6d",
+      "credentials": {
+        "telegramApi": {
+          "id": "PZryKVefTk3HTXi2",
+          "name": "Order_DB_Bot"
+        }
+      },
+      "notes": "Sends CSV file via Telegram. Expects binary data and filename in JSON."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Detect export markers and extract filter parameters\nconst items = $input.all();\nconst item = items[0];\nconst outputText = item?.json?.output?.toString() || '';\n\n// Check for export markers: [EXPORT_ORDERS] or [EXPORT_INVOICES]\nconst ordersMatch = outputText.match(/\\[EXPORT_ORDERS\\]|EXPORT_ORDERS/i);\nconst invoicesMatch = outputText.match(/\\[EXPORT_INVOICES\\]|EXPORT_INVOICES/i);\n\nif (ordersMatch || invoicesMatch) {\n  const exportType = invoicesMatch ? 'invoices' : 'orders';\n  \n  // Extract optional filters from the marker line\n  // Format: [EXPORT_ORDERS supplier=Acme from=2024-01-01 to=2024-12-31]\n  let supplier = null;\n  let dateFrom = null;\n  let dateTo = null;\n  \n  const supplierMatch = outputText.match(/supplier=([\\w\\s]+?)(?:\\s+(?:from|to)=|\\]|$)/i);\n  const fromMatch = outputText.match(/from=([\\d-]+)/i);\n  const toMatch = outputText.match(/to=([\\d-]+)/i);\n  \n  if (supplierMatch) supplier = supplierMatch[1].trim();\n  if (fromMatch) dateFrom = fromMatch[1];\n  if (toMatch) dateTo = toMatch[1];\n  \n  // Return parsed export request for the next node to fetch data\n  return [{\n    json: {\n      has_export: true,\n      export_type: exportType,\n      filters: {\n        supplier: supplier,\n        date_from: dateFrom,\n        date_to: dateTo\n      }\n    }\n  }];\n}\n\n// No export detected\nreturn [{ json: { has_export: false } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        528
+      ],
+      "id": "0908853b-ec2a-4f47-a05e-782bc087aa90",
+      "name": "Check_Export_Request",
+      "notes": "Detects [EXPORT_ORDERS] or [EXPORT_INVOICES] markers in AI output and generates CSV."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "condition-export",
+              "leftValue": "={{ $json.has_export }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        512,
+        528
+      ],
+      "id": "3504681d-2815-45ae-9453-428b424a5f4c",
+      "name": "If Export Needed"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cond-orders",
+                    "leftValue": "={{ $json.export_type }}",
+                    "rightValue": "orders",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "orders"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "cond-invoices",
+                    "leftValue": "={{ $json.export_type }}",
+                    "rightValue": "invoices",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "invoices"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        768,
+        512
+      ],
+      "id": "802376c9-f323-4030-8508-2695bb9db11d",
+      "name": "Switch_Export_Type"
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://toaqbnozgasedwfcimch.supabase.co/rest/v1/orders?select=id,supplier,order_date,total_amount,net_amount,source_channel&order=order_date.desc&limit=10000' + ($json.filters?.supplier ? '&supplier=ilike.*' + $json.filters.supplier + '*' : '') + ($json.filters?.date_from ? '&order_date=gte.' + $json.filters.date_from : '') + ($json.filters?.date_to ? '&order_date=lte.' + $json.filters.date_to : '') }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        976,
+        448
+      ],
+      "id": "0cfd3dd9-f0bd-45da-bcc4-5e50a5421008",
+      "name": "Fetch_Orders_For_CSV",
+      "credentials": {
+        "supabaseApi": {
+          "id": "QP0Lvhh4TcXvEl3C",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ 'https://toaqbnozgasedwfcimch.supabase.co/rest/v1/invoices?select=id,supplier,invoice_date,total_amount,net_amount,exchange_rate,financing_type&order=invoice_date.desc&limit=10000' + ($json.filters?.supplier ? '&supplier=ilike.*' + $json.filters.supplier + '*' : '') + ($json.filters?.date_from ? '&invoice_date=gte.' + $json.filters.date_from : '') + ($json.filters?.date_to ? '&invoice_date=lte.' + $json.filters.date_to : '') }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        976,
+        608
+      ],
+      "id": "04617b6f-3237-47c5-bca6-1a274193beba",
+      "name": "Fetch_Invoices_For_CSV",
+      "credentials": {
+        "supabaseApi": {
+          "id": "QP0Lvhh4TcXvEl3C",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate CSV from fetched data\nconst items = $input.all();\nlet records = [];\n\n// Collect all records from input\nfor (const item of items) {\n  if (Array.isArray(item.json)) {\n    records = records.concat(item.json);\n  } else if (item.json && typeof item.json === 'object') {\n    records.push(item.json);\n  }\n}\n\nif (records.length === 0) {\n  return [{ json: { error: 'No data to export', record_count: 0 } }];\n}\n\n// Detect type from first record's fields\nconst isInvoice = records[0].hasOwnProperty('invoice_date') || records[0].hasOwnProperty('financing_type');\nconst exportType = isInvoice ? 'invoices' : 'orders';\n\n// Generate CSV\nlet csv = '';\n\nif (isInvoice) {\n  csv = 'ID,Supplier,Invoice Date,Total Amount,Net Amount,Exchange Rate,Financing Type\\n';\n  for (const r of records) {\n    const supplier = (r.supplier || '').toString().replace(/,/g, ';').replace(/\"/g, '\"\"');\n    csv += `\"${r.id || ''}\",\"${supplier}\",\"${r.invoice_date || ''}\",${r.total_amount || 0},${r.net_amount || 0},${r.exchange_rate || 1},\"${(r.financing_type || '').replace(/\"/g, '\"\"')}\"\\n`;\n  }\n} else {\n  csv = 'ID,Supplier,Order Date,Total Amount,Net Amount,Source Channel\\n';\n  for (const r of records) {\n    const supplier = (r.supplier || '').toString().replace(/,/g, ';').replace(/\"/g, '\"\"');\n    csv += `\"${r.id || ''}\",\"${supplier}\",\"${r.order_date || ''}\",${r.total_amount || 0},${r.net_amount || 0},\"${(r.source_channel || '').replace(/\"/g, '\"\"')}\"\\n`;\n  }\n}\n\nconst filename = `${exportType}_export_${new Date().toISOString().split('T')[0]}.csv`;\n\n// Return with binary data\nreturn [{\n  json: {\n    export_type: exportType,\n    record_count: records.length,\n    filename: filename\n  },\n  binary: {\n    data: await this.helpers.prepareBinaryData(Buffer.from(csv, 'utf-8'), filename, 'text/csv')\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        528
+      ],
+      "id": "7a7aef4f-03af-4100-8270-a7884d7a18e5",
+      "name": "Generate_CSV",
+      "notes": "Converts fetched data array to CSV and attaches as binary file."
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check_High_Value_Alert": {
+      "main": [
+        [
+          {
+            "node": "If High Value Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If High Value Alert": {
+      "main": [
+        [
+          {
+            "node": "Get_Alert_Recipients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get_Alert_Recipients": {
+      "main": [
+        [
+          {
+            "node": "Prepare_Alert_Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare_Alert_Message": {
+      "main": [
+        [
+          {
+            "node": "If Has Alert Recipients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Has Alert Recipients": {
+      "main": [
+        [
+          {
+            "node": "Send_High_Value_Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Chart Parameters",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check_Export_Request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check_High_Value_Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get_Records": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get_Record_Items": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Count_Records": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RPC": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute_Metabase_SQL": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Chart Parameters": {
+      "main": [
+        [
+          {
+            "node": "If Chart Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate_Chart_Image": {
+      "main": [
+        [
+          {
+            "node": "Preserve Chart Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preserve Chart Metadata": {
+      "main": [
+        [
+          {
+            "node": "Check for Chart",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check for Chart": {
+      "main": [
+        [
+          {
+            "node": "Send Chart Photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Chart Needed": {
+      "main": [
+        [
+          {
+            "node": "Generate_Chart_Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update_Record": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update_Record_Item": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete_Record": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete_Record_Item": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create_Record": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search_Record": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get_Alert_Thresholds": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bulk_Update_Records": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bulk_Delete_Records": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check_Export_Request": {
+      "main": [
+        [
+          {
+            "node": "If Export Needed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Export Needed": {
+      "main": [
+        [
+          {
+            "node": "Switch_Export_Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch_Export_Type": {
+      "main": [
+        [
+          {
+            "node": "Fetch_Orders_For_CSV",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch_Invoices_For_CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch_Orders_For_CSV": {
+      "main": [
+        [
+          {
+            "node": "Generate_CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch_Invoices_For_CSV": {
+      "main": [
+        [
+          {
+            "node": "Generate_CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate_CSV": {
+      "main": [
+        [
+          {
+            "node": "Send_Export_File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "instanceId": "142c6eed1836f6718bb543a63a8e649ca970b75ca5294799b6e0405b9496e811"
+  }
+}
