@@ -7,7 +7,7 @@ import Filters from '../components/common/Filters';
 import Modal from '../components/common/Modal';
 import { CardLoadingSpinner } from '../components/common/LoadingSpinner';
 import { getDashboardStats } from '../services/statsService';
-import { createInvoice, updateInvoice, deleteInvoice } from '../services/invoicesService';
+import { createInvoice, updateInvoice, deleteInvoice, deleteInvoices } from '../services/invoicesService';
 import { formatCurrency } from '../utils/dataTransformers';
 import { useToast } from '../components/common/Toast';
 
@@ -23,6 +23,7 @@ export default function Invoices() {
   const [stats, setStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState([]);
   const [modalMode, setModalMode] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -62,6 +63,7 @@ export default function Invoices() {
 
   const closeModal = () => {
     setSelectedInvoice(null);
+    setSelectedInvoiceIds([]);
     setModalMode(null);
   };
 
@@ -102,6 +104,29 @@ export default function Invoices() {
       setRefreshKey(prev => prev + 1);
     } catch (err) {
       toast.error(err.message || 'Failed to delete invoice');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleBulkDelete = (ids) => {
+    setSelectedInvoiceIds(ids);
+    setModalMode('bulkDelete');
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    setIsSubmitting(true);
+    try {
+      const result = await deleteInvoices(selectedInvoiceIds);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete invoices');
+      }
+      toast.success(`${selectedInvoiceIds.length} invoice${selectedInvoiceIds.length > 1 ? 's' : ''} deleted successfully`);
+      setSelectedInvoiceIds([]);
+      closeModal();
+      setRefreshKey(prev => prev + 1);
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete invoices');
     } finally {
       setIsSubmitting(false);
     }
@@ -169,6 +194,7 @@ export default function Invoices() {
           onView={handleView}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onBulkDelete={handleBulkDelete}
         />
       </div>
 
@@ -224,6 +250,33 @@ export default function Invoices() {
               disabled={isSubmitting}
             >
               {isSubmitting ? 'Deleting...' : 'Delete Invoice'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Bulk Delete Confirmation Modal */}
+      <Modal
+        isOpen={modalMode === 'bulkDelete'}
+        onClose={closeModal}
+        title="Delete Selected Invoices"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            Are you sure you want to delete <strong>{selectedInvoiceIds.length}</strong> selected invoice{selectedInvoiceIds.length > 1 ? 's' : ''}?
+            This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-3">
+            <button onClick={closeModal} className="btn btn-secondary" disabled={isSubmitting}>
+              Cancel
+            </button>
+            <button 
+              onClick={handleConfirmBulkDelete} 
+              className="btn btn-danger"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Deleting...' : `Delete ${selectedInvoiceIds.length} Invoice${selectedInvoiceIds.length > 1 ? 's' : ''}`}
             </button>
           </div>
         </div>

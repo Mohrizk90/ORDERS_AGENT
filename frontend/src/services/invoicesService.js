@@ -137,17 +137,23 @@ export const createInvoice = async (invoiceData) => {
   }
 
   try {
+    const insertData = {
+      supplier: invoiceData.supplier,
+      invoice_date: invoiceData.invoice_date,
+      total_amount: invoiceData.total_amount,
+      exchange_rate: invoiceData.exchange_rate || 1.0,
+      financing_type: invoiceData.financing_type || 'Credit',
+      status: invoiceData.status || 'Pending',
+    };
+    
+    // Only include net_amount if it's provided and not null/undefined
+    if (invoiceData.net_amount != null) {
+      insertData.net_amount = invoiceData.net_amount;
+    }
+
     const { data, error } = await supabase
       .from('invoices')
-      .insert([{
-        supplier: invoiceData.supplier,
-        invoice_date: invoiceData.invoice_date,
-        total_amount: invoiceData.total_amount,
-        net_amount: invoiceData.net_amount,
-        exchange_rate: invoiceData.exchange_rate || 1.0,
-        financing_type: invoiceData.financing_type || 'Credit',
-        status: invoiceData.status || 'Pending',
-      }])
+      .insert([insertData])
       .select()
       .single();
 
@@ -219,6 +225,45 @@ export const deleteInvoice = async (id) => {
     return createSuccessResult({ id });
   } catch (error) {
     return createErrorResult(error, 'deleteInvoice');
+  }
+};
+
+/**
+ * Delete multiple invoices
+ */
+export const deleteInvoices = async (ids) => {
+  if (!ids || ids.length === 0) {
+    return createErrorResult({ message: 'No invoices selected' }, 'deleteInvoices');
+  }
+
+  if (USE_MOCK_DATA) {
+    ids.forEach(id => {
+      const index = mockInvoices.findIndex(i => i.id === id);
+      if (index !== -1) {
+        mockInvoices.splice(index, 1);
+      }
+    });
+    return createSuccessResult({ deleted: ids.length });
+  }
+
+  try {
+    // First delete related invoice items for all invoices
+    await supabase
+      .from('invoice_items')
+      .delete()
+      .in('invoice_id', ids);
+
+    // Then delete the invoices
+    const { error } = await supabase
+      .from('invoices')
+      .delete()
+      .in('id', ids);
+
+    if (error) throw error;
+
+    return createSuccessResult({ deleted: ids.length });
+  } catch (error) {
+    return createErrorResult(error, 'deleteInvoices');
   }
 };
 

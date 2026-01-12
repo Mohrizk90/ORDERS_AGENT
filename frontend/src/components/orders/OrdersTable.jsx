@@ -20,6 +20,7 @@ export default function OrdersTable({
   onView, 
   onEdit, 
   onDelete,
+  onBulkDelete,
   showActions = true,
   disableRealtime = false
 }) {
@@ -176,7 +177,10 @@ export default function OrdersTable({
               <Download className="w-4 h-4 mr-1" />
               Export
             </button>
-            <button className="btn btn-sm btn-danger">
+            <button 
+              onClick={() => onBulkDelete?.(selectedRows)}
+              className="btn btn-sm btn-danger"
+            >
               <Trash2 className="w-4 h-4 mr-1" />
               Delete
             </button>

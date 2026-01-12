@@ -7,7 +7,7 @@ import Filters from '../components/common/Filters';
 import Modal from '../components/common/Modal';
 import { CardLoadingSpinner } from '../components/common/LoadingSpinner';
 import { getDashboardStats } from '../services/statsService';
-import { createOrder, updateOrder, deleteOrder } from '../services/ordersService';
+import { createOrder, updateOrder, deleteOrder, deleteOrders } from '../services/ordersService';
 import { formatCurrency } from '../utils/dataTransformers';
 import { useToast } from '../components/common/Toast';
 
@@ -23,6 +23,7 @@ export default function Orders() {
   const [stats, setStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [selectedOrderIds, setSelectedOrderIds] = useState([]);
   const [modalMode, setModalMode] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -62,6 +63,7 @@ export default function Orders() {
 
   const closeModal = () => {
     setSelectedOrder(null);
+    setSelectedOrderIds([]);
     setModalMode(null);
   };
 
@@ -102,6 +104,29 @@ export default function Orders() {
       setRefreshKey(prev => prev + 1);
     } catch (err) {
       toast.error(err.message || 'Failed to delete order');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleBulkDelete = (ids) => {
+    setSelectedOrderIds(ids);
+    setModalMode('bulkDelete');
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    setIsSubmitting(true);
+    try {
+      const result = await deleteOrders(selectedOrderIds);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete orders');
+      }
+      toast.success(`${selectedOrderIds.length} order${selectedOrderIds.length > 1 ? 's' : ''} deleted successfully`);
+      setSelectedOrderIds([]);
+      closeModal();
+      setRefreshKey(prev => prev + 1);
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete orders');
     } finally {
       setIsSubmitting(false);
     }
@@ -169,6 +194,7 @@ export default function Orders() {
           onView={handleView}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onBulkDelete={handleBulkDelete}
         />
       </div>
 
@@ -224,6 +250,33 @@ export default function Orders() {
               disabled={isSubmitting}
             >
               {isSubmitting ? 'Deleting...' : 'Delete Order'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Bulk Delete Confirmation Modal */}
+      <Modal
+        isOpen={modalMode === 'bulkDelete'}
+        onClose={closeModal}
+        title="Delete Selected Orders"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            Are you sure you want to delete <strong>{selectedOrderIds.length}</strong> selected order{selectedOrderIds.length > 1 ? 's' : ''}?
+            This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-3">
+            <button onClick={closeModal} className="btn btn-secondary" disabled={isSubmitting}>
+              Cancel
+            </button>
+            <button 
+              onClick={handleConfirmBulkDelete} 
+              className="btn btn-danger"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Deleting...' : `Delete ${selectedOrderIds.length} Order${selectedOrderIds.length > 1 ? 's' : ''}`}
             </button>
           </div>
         </div>

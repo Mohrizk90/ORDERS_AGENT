@@ -141,16 +141,22 @@ export const createOrder = async (orderData) => {
   }
 
   try {
+    const insertData = {
+      supplier: orderData.supplier,
+      order_date: orderData.order_date,
+      total_amount: orderData.total_amount,
+      source_channel: orderData.source_channel || 'Web',
+      status: orderData.status || 'Pending',
+    };
+    
+    // Only include net_amount if it's provided and not null/undefined
+    if (orderData.net_amount != null) {
+      insertData.net_amount = orderData.net_amount;
+    }
+
     const { data, error } = await supabase
       .from('orders')
-      .insert([{
-        supplier: orderData.supplier,
-        order_date: orderData.order_date,
-        total_amount: orderData.total_amount,
-        net_amount: orderData.net_amount,
-        source_channel: orderData.source_channel || 'Web',
-        status: orderData.status || 'Pending',
-      }])
+      .insert([insertData])
       .select()
       .single();
 
@@ -222,6 +228,45 @@ export const deleteOrder = async (id) => {
     return createSuccessResult({ id });
   } catch (error) {
     return createErrorResult(error, 'deleteOrder');
+  }
+};
+
+/**
+ * Delete multiple orders
+ */
+export const deleteOrders = async (ids) => {
+  if (!ids || ids.length === 0) {
+    return createErrorResult({ message: 'No orders selected' }, 'deleteOrders');
+  }
+
+  if (USE_MOCK_DATA) {
+    ids.forEach(id => {
+      const index = mockOrders.findIndex(o => o.id === id);
+      if (index !== -1) {
+        mockOrders.splice(index, 1);
+      }
+    });
+    return createSuccessResult({ deleted: ids.length });
+  }
+
+  try {
+    // First delete related order items for all orders
+    await supabase
+      .from('order_items')
+      .delete()
+      .in('order_id', ids);
+
+    // Then delete the orders
+    const { error } = await supabase
+      .from('orders')
+      .delete()
+      .in('id', ids);
+
+    if (error) throw error;
+
+    return createSuccessResult({ deleted: ids.length });
+  } catch (error) {
+    return createErrorResult(error, 'deleteOrders');
   }
 };
 

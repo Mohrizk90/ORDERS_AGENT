@@ -21,7 +21,7 @@ export const parseSupabaseError = (error) => {
       case '23503':
         return 'Cannot delete: related records exist';
       case '42501':
-        return 'Permission denied';
+        return 'Permission denied. Check your Row Level Security (RLS) policies.';
       case 'PGRST204':
         return 'Record not found';
       default:

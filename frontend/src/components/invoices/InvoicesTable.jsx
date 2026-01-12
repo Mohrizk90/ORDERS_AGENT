@@ -13,6 +13,7 @@ export default function InvoicesTable({
   onView, 
   onEdit, 
   onDelete,
+  onBulkDelete,
   showActions = true,
   disableRealtime = false
 }) {
@@ -169,7 +170,10 @@ export default function InvoicesTable({
               <Download className="w-4 h-4 mr-1" />
               Export
             </button>
-            <button className="btn btn-sm btn-danger">
+            <button 
+              onClick={() => onBulkDelete?.(selectedRows)}
+              className="btn btn-sm btn-danger"
+            >
               <Trash2 className="w-4 h-4 mr-1" />
               Delete
             </button>
