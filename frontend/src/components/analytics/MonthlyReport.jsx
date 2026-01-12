@@ -1,18 +1,57 @@
-import { Calendar, TrendingUp, DollarSign, FileText, Receipt, Download } from 'lucide-react';
-import { mockMonthlyData, formatCurrency } from '../../data/mockData';
+import { useState, useEffect } from 'react';
+import { Calendar, TrendingUp, TrendingDown, DollarSign, FileText, Receipt, Download } from 'lucide-react';
+import { getMonthlyReport } from '../../services/analyticsService';
+import { formatCurrency } from '../../utils/dataTransformers';
+import { CardLoadingSpinner } from '../common/LoadingSpinner';
 
-export default function MonthlyReport() {
+export default function MonthlyReport({ year = new Date().getFullYear() }) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const result = await getMonthlyReport(year);
+      if (result.success) {
+        setData(result.data || []);
+      }
+      setLoading(false);
+    };
+    fetchData();
+  }, [year]);
+
+  if (loading) {
+    return (
+      <div className="card">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-primary-100 rounded-lg">
+            <Calendar className="w-5 h-5 text-primary-600" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Monthly Report</h3>
+            <p className="text-sm text-gray-500">{year} Summary</p>
+          </div>
+        </div>
+        <CardLoadingSpinner />
+      </div>
+    );
+  }
+
   // Calculate totals
-  const totalOrders = mockMonthlyData.reduce((sum, m) => sum + m.orders, 0);
-  const totalInvoices = mockMonthlyData.reduce((sum, m) => sum + m.invoices, 0);
-  const avgOrders = totalOrders / mockMonthlyData.length;
-  const avgInvoices = totalInvoices / mockMonthlyData.length;
+  const totalOrderAmount = data.reduce((sum, m) => sum + (m.orderAmount || 0), 0);
+  const totalInvoiceAmount = data.reduce((sum, m) => sum + (m.invoiceAmount || 0), 0);
+  const avgOrderAmount = data.length > 0 ? totalOrderAmount / data.length : 0;
+  const avgInvoiceAmount = data.length > 0 ? totalInvoiceAmount / data.length : 0;
   
   // Calculate growth (last month vs previous)
-  const lastMonth = mockMonthlyData[mockMonthlyData.length - 1];
-  const prevMonth = mockMonthlyData[mockMonthlyData.length - 2];
-  const orderGrowth = ((lastMonth.orders - prevMonth.orders) / prevMonth.orders * 100).toFixed(1);
-  const invoiceGrowth = ((lastMonth.invoices - prevMonth.invoices) / prevMonth.invoices * 100).toFixed(1);
+  const lastMonth = data[data.length - 1];
+  const prevMonth = data[data.length - 2];
+  const orderGrowth = prevMonth?.orderAmount 
+    ? ((lastMonth?.orderAmount - prevMonth.orderAmount) / prevMonth.orderAmount * 100).toFixed(1)
+    : 0;
+  const invoiceGrowth = prevMonth?.invoiceAmount 
+    ? ((lastMonth?.invoiceAmount - prevMonth.invoiceAmount) / prevMonth.invoiceAmount * 100).toFixed(1)
+    : 0;
 
   return (
     <div className="card">
@@ -23,7 +62,7 @@ export default function MonthlyReport() {
           </div>
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Monthly Report</h3>
-            <p className="text-sm text-gray-500">2024 Summary</p>
+            <p className="text-sm text-gray-500">{year} Summary</p>
           </div>
         </div>
         <button className="btn btn-secondary btn-sm">
@@ -39,9 +78,9 @@ export default function MonthlyReport() {
             <FileText className="w-4 h-4" />
             <span className="text-sm font-medium">Total Orders</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalOrders)}</p>
-          <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
-            <TrendingUp className="w-3 h-3" />
+          <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalOrderAmount)}</p>
+          <p className={`text-sm mt-1 flex items-center gap-1 ${parseFloat(orderGrowth) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {parseFloat(orderGrowth) >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
             {orderGrowth}% vs last month
           </p>
         </div>
@@ -51,9 +90,9 @@ export default function MonthlyReport() {
             <Receipt className="w-4 h-4" />
             <span className="text-sm font-medium">Total Invoices</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalInvoices)}</p>
-          <p className="text-sm text-green-600 mt-1 flex items-center gap-1">
-            <TrendingUp className="w-3 h-3" />
+          <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalInvoiceAmount)}</p>
+          <p className={`text-sm mt-1 flex items-center gap-1 ${parseFloat(invoiceGrowth) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {parseFloat(invoiceGrowth) >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
             {invoiceGrowth}% vs last month
           </p>
         </div>
@@ -63,7 +102,7 @@ export default function MonthlyReport() {
             <DollarSign className="w-4 h-4" />
             <span className="text-sm font-medium">Avg. Orders</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(avgOrders)}</p>
+          <p className="text-2xl font-bold text-gray-900">{formatCurrency(avgOrderAmount)}</p>
           <p className="text-sm text-gray-500 mt-1">Per month</p>
         </div>
 
@@ -72,7 +111,7 @@ export default function MonthlyReport() {
             <DollarSign className="w-4 h-4" />
             <span className="text-sm font-medium">Avg. Invoices</span>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(avgInvoices)}</p>
+          <p className="text-2xl font-bold text-gray-900">{formatCurrency(avgInvoiceAmount)}</p>
           <p className="text-sm text-gray-500 mt-1">Per month</p>
         </div>
       </div>
@@ -90,18 +129,20 @@ export default function MonthlyReport() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
-            {mockMonthlyData.map((month, index) => {
-              const total = month.orders + month.invoices;
-              const ratio = (month.orders / month.invoices * 100).toFixed(0);
+            {data.map((month) => {
+              const total = (month.orderAmount || 0) + (month.invoiceAmount || 0);
+              const ratio = month.invoiceAmount > 0 
+                ? ((month.orderAmount / month.invoiceAmount) * 100).toFixed(0)
+                : 0;
               
               return (
                 <tr key={month.month} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm font-medium text-gray-900">{month.month}</td>
                   <td className="px-4 py-3 text-sm text-right text-blue-600 font-medium">
-                    {formatCurrency(month.orders)}
+                    {formatCurrency(month.orderAmount || 0)}
                   </td>
                   <td className="px-4 py-3 text-sm text-right text-red-600 font-medium">
-                    {formatCurrency(month.invoices)}
+                    {formatCurrency(month.invoiceAmount || 0)}
                   </td>
                   <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900">
                     {formatCurrency(total)}
@@ -119,16 +160,16 @@ export default function MonthlyReport() {
             <tr>
               <td className="px-4 py-3 text-sm font-bold text-gray-900">Total</td>
               <td className="px-4 py-3 text-sm text-right text-blue-600 font-bold">
-                {formatCurrency(totalOrders)}
+                {formatCurrency(totalOrderAmount)}
               </td>
               <td className="px-4 py-3 text-sm text-right text-red-600 font-bold">
-                {formatCurrency(totalInvoices)}
+                {formatCurrency(totalInvoiceAmount)}
               </td>
               <td className="px-4 py-3 text-sm text-right font-bold text-gray-900">
-                {formatCurrency(totalOrders + totalInvoices)}
+                {formatCurrency(totalOrderAmount + totalInvoiceAmount)}
               </td>
               <td className="px-4 py-3 text-sm text-right font-bold">
-                {(totalOrders / totalInvoices * 100).toFixed(0)}%
+                {totalInvoiceAmount > 0 ? ((totalOrderAmount / totalInvoiceAmount) * 100).toFixed(0) : 0}%
               </td>
             </tr>
           </tfoot>

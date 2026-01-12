@@ -1,12 +1,35 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, Bell, ChevronDown, Menu, X } from 'lucide-react';
-import { mockAlerts } from '../../data/mockData';
+import { getAlerts, markAlertRead } from '../../services/statsService';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeSubscription';
 
 export default function Header({ title, onMenuClick, showMenuButton }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  
-  const unreadCount = mockAlerts.filter(a => !a.read).length;
+  const [alerts, setAlerts] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const fetchAlerts = useCallback(async () => {
+    const result = await getAlerts({ unreadOnly: false });
+    if (result.success) {
+      const alertsData = result.data || [];
+      setAlerts(alertsData);
+      setUnreadCount(alertsData.filter(a => !a.read).length);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAlerts();
+  }, [fetchAlerts]);
+
+  // Real-time subscription
+  useRealtimeRefresh('alerts', fetchAlerts);
+
+  const handleMarkAllRead = async () => {
+    const unreadAlerts = alerts.filter(a => !a.read);
+    await Promise.all(unreadAlerts.map(a => markAlertRead(a.id)));
+    fetchAlerts();
+  };
 
   return (
     <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-6 sticky top-0 z-30">
@@ -63,44 +86,58 @@ export default function Header({ title, onMenuClick, showMenuButton }) {
               <div className="p-4 border-b border-gray-100">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-gray-900">Notifications</h3>
-                  <button className="text-xs text-primary-600 hover:text-primary-700">
-                    Mark all read
-                  </button>
+                  {unreadCount > 0 && (
+                    <button 
+                      onClick={handleMarkAllRead}
+                      className="text-xs text-primary-600 hover:text-primary-700"
+                    >
+                      Mark all read
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="max-h-96 overflow-y-auto scrollbar-thin">
-                {mockAlerts.slice(0, 5).map((alert) => (
-                  <div
-                    key={alert.id}
-                    className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
-                      !alert.read ? 'bg-primary-50' : ''
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`w-2 h-2 mt-2 rounded-full ${
-                        alert.type === 'high_value' ? 'bg-red-500' :
-                        alert.type === 'overdue' ? 'bg-yellow-500' :
-                        'bg-green-500'
-                      }`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">
-                          {alert.title}
-                        </p>
-                        <p className="text-sm text-gray-500 truncate">
-                          {alert.message}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-1">
-                          {new Date(alert.timestamp).toLocaleString()}
-                        </p>
+                {alerts.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500 text-sm">
+                    No notifications
+                  </div>
+                ) : (
+                  alerts.slice(0, 5).map((alert) => (
+                    <div
+                      key={alert.id}
+                      className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
+                        !alert.read ? 'bg-primary-50' : ''
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className={`w-2 h-2 mt-2 rounded-full ${
+                          alert.type === 'high_value' ? 'bg-red-500' :
+                          alert.type === 'overdue' ? 'bg-yellow-500' :
+                          'bg-green-500'
+                        }`} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900">
+                            {alert.title}
+                          </p>
+                          <p className="text-sm text-gray-500 truncate">
+                            {alert.message}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {new Date(alert.timestamp).toLocaleString()}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
               <div className="p-3 border-t border-gray-100">
-                <button className="w-full text-sm text-center text-primary-600 hover:text-primary-700 font-medium">
+                <a 
+                  href="/notifications"
+                  className="w-full text-sm text-center text-primary-600 hover:text-primary-700 font-medium block"
+                >
                   View all notifications
-                </button>
+                </a>
               </div>
             </div>
           )}

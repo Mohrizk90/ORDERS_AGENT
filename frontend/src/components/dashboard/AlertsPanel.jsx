@@ -1,5 +1,9 @@
+import { useState, useEffect, useCallback } from 'react';
 import { AlertTriangle, DollarSign, Clock, CheckCircle, X, ArrowRight } from 'lucide-react';
-import { mockAlerts, formatCurrency, formatDateTime } from '../../data/mockData';
+import { getAlerts, markAlertRead } from '../../services/statsService';
+import { formatCurrency, formatDateTime } from '../../utils/dataTransformers';
+import { useRealtimeRefresh } from '../../hooks/useRealtimeSubscription';
+import { CardLoadingSpinner } from '../common/LoadingSpinner';
 
 const alertIcons = {
   high_value: DollarSign,
@@ -20,9 +24,38 @@ const alertIconColors = {
 };
 
 export default function AlertsPanel() {
-  const unreadAlerts = mockAlerts.filter(a => !a.read);
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  if (unreadAlerts.length === 0) {
+  const fetchAlerts = useCallback(async () => {
+    const result = await getAlerts({ unreadOnly: true });
+    if (result.success) {
+      setAlerts(result.data || []);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchAlerts();
+  }, [fetchAlerts]);
+
+  // Real-time subscription
+  useRealtimeRefresh('alerts', fetchAlerts);
+
+  const handleDismiss = async (alertId) => {
+    await markAlertRead(alertId);
+    setAlerts(prev => prev.filter(a => a.id !== alertId));
+  };
+
+  if (loading) {
+    return (
+      <div className="card">
+        <CardLoadingSpinner />
+      </div>
+    );
+  }
+
+  if (alerts.length === 0) {
     return null;
   }
 
@@ -33,17 +66,20 @@ export default function AlertsPanel() {
           <AlertTriangle className="w-5 h-5 text-red-600" />
           <h3 className="text-lg font-semibold text-gray-900">Active Alerts</h3>
           <span className="bg-red-100 text-red-600 text-xs font-medium px-2 py-0.5 rounded-full">
-            {unreadAlerts.length}
+            {alerts.length}
           </span>
         </div>
-        <button className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1">
+        <a 
+          href="/notifications" 
+          className="text-sm text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1"
+        >
           View all
           <ArrowRight className="w-4 h-4" />
-        </button>
+        </a>
       </div>
 
       <div className="space-y-3">
-        {unreadAlerts.slice(0, 3).map((alert) => {
+        {alerts.slice(0, 3).map((alert) => {
           const Icon = alertIcons[alert.type] || AlertTriangle;
           const colorClass = alertColors[alert.type] || 'border-gray-200 bg-gray-50';
           const iconColorClass = alertIconColors[alert.type] || 'text-gray-600 bg-gray-100';
@@ -71,7 +107,10 @@ export default function AlertsPanel() {
                       </p>
                     )}
                   </div>
-                  <button className="text-gray-400 hover:text-gray-600">
+                  <button 
+                    onClick={() => handleDismiss(alert.id)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
                     <X className="w-4 h-4" />
                   </button>
                 </div>

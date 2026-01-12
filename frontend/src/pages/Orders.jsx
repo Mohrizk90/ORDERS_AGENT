@@ -1,11 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Plus, Download } from 'lucide-react';
 import OrdersTable from '../components/orders/OrdersTable';
 import OrderDetail from '../components/orders/OrderDetail';
 import OrderForm from '../components/orders/OrderForm';
 import Filters from '../components/common/Filters';
 import Modal from '../components/common/Modal';
-import { mockStats, formatCurrency } from '../data/mockData';
+import { CardLoadingSpinner } from '../components/common/LoadingSpinner';
+import { getDashboardStats } from '../services/statsService';
+import { createOrder, updateOrder, deleteOrder, deleteOrders } from '../services/ordersService';
+import { formatCurrency } from '../utils/dataTransformers';
+import { useToast } from '../components/common/Toast';
 
 export default function Orders() {
   const [filters, setFilters] = useState({
@@ -16,8 +20,26 @@ export default function Orders() {
     dateTo: '',
   });
 
+  const [stats, setStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [modalMode, setModalMode] = useState(null); // 'view', 'edit', 'create', 'delete'
+  const [selectedOrderIds, setSelectedOrderIds] = useState([]);
+  const [modalMode, setModalMode] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const toast = useToast();
+
+  const fetchStats = useCallback(async () => {
+    const result = await getDashboardStats();
+    if (result.success) {
+      setStats(result.data);
+    }
+    setLoadingStats(false);
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats, refreshKey]);
 
   const handleView = (order) => {
     setSelectedOrder(order);
@@ -41,19 +63,73 @@ export default function Orders() {
 
   const closeModal = () => {
     setSelectedOrder(null);
+    setSelectedOrderIds([]);
     setModalMode(null);
   };
 
-  const handleFormSubmit = (data) => {
-    console.log('Form submitted:', data);
-    // Here you would call the API to save the order
-    closeModal();
+  const handleFormSubmit = async (data) => {
+    setIsSubmitting(true);
+    try {
+      if (modalMode === 'create') {
+        const result = await createOrder(data);
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to create order');
+        }
+        toast.success('Order created successfully');
+      } else if (modalMode === 'edit') {
+        const result = await updateOrder(selectedOrder.id, data);
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to update order');
+        }
+        toast.success('Order updated successfully');
+      }
+      closeModal();
+      setRefreshKey(prev => prev + 1);
+    } catch (err) {
+      toast.error(err.message || 'An error occurred');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleConfirmDelete = () => {
-    console.log('Deleting order:', selectedOrder?.id);
-    // Here you would call the API to delete the order
-    closeModal();
+  const handleConfirmDelete = async () => {
+    setIsSubmitting(true);
+    try {
+      const result = await deleteOrder(selectedOrder.id);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete order');
+      }
+      toast.success('Order deleted successfully');
+      closeModal();
+      setRefreshKey(prev => prev + 1);
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete order');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleBulkDelete = (ids) => {
+    setSelectedOrderIds(ids);
+    setModalMode('bulkDelete');
+  };
+
+  const handleConfirmBulkDelete = async () => {
+    setIsSubmitting(true);
+    try {
+      const result = await deleteOrders(selectedOrderIds);
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to delete orders');
+      }
+      toast.success(`${selectedOrderIds.length} order${selectedOrderIds.length > 1 ? 's' : ''} deleted successfully`);
+      setSelectedOrderIds([]);
+      closeModal();
+      setRefreshKey(prev => prev + 1);
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete orders');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -78,22 +154,33 @@ export default function Orders() {
 
       {/* Stats Summary */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="card-flat">
-          <p className="text-sm text-gray-500">Total Orders</p>
-          <p className="text-2xl font-bold text-gray-900">{mockStats.totalOrders}</p>
-        </div>
-        <div className="card-flat">
-          <p className="text-sm text-gray-500">Pending</p>
-          <p className="text-2xl font-bold text-yellow-600">{mockStats.pendingOrders}</p>
-        </div>
-        <div className="card-flat">
-          <p className="text-sm text-gray-500">Total Value</p>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(mockStats.totalOrderAmount)}</p>
-        </div>
-        <div className="card-flat">
-          <p className="text-sm text-gray-500">Processed Today</p>
-          <p className="text-2xl font-bold text-green-600">{mockStats.processedToday}</p>
-        </div>
+        {loadingStats ? (
+          <>
+            <div className="card-flat"><CardLoadingSpinner /></div>
+            <div className="card-flat"><CardLoadingSpinner /></div>
+            <div className="card-flat"><CardLoadingSpinner /></div>
+            <div className="card-flat"><CardLoadingSpinner /></div>
+          </>
+        ) : (
+          <>
+            <div className="card-flat">
+              <p className="text-sm text-gray-500">Total Orders</p>
+              <p className="text-2xl font-bold text-gray-900">{stats?.totalOrders || 0}</p>
+            </div>
+            <div className="card-flat">
+              <p className="text-sm text-gray-500">Pending</p>
+              <p className="text-2xl font-bold text-yellow-600">{stats?.pendingOrders || 0}</p>
+            </div>
+            <div className="card-flat">
+              <p className="text-sm text-gray-500">Total Value</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(stats?.totalOrderAmount || 0)}</p>
+            </div>
+            <div className="card-flat">
+              <p className="text-sm text-gray-500">Processed Today</p>
+              <p className="text-2xl font-bold text-green-600">{stats?.processedToday || 0}</p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Filters */}
@@ -102,10 +189,12 @@ export default function Orders() {
       {/* Table */}
       <div className="card">
         <OrdersTable
+          key={refreshKey}
           filters={filters}
           onView={handleView}
           onEdit={handleEdit}
           onDelete={handleDelete}
+          onBulkDelete={handleBulkDelete}
         />
       </div>
 
@@ -135,6 +224,7 @@ export default function Orders() {
           order={modalMode === 'edit' ? selectedOrder : null}
           onSubmit={handleFormSubmit}
           onCancel={closeModal}
+          isSubmitting={isSubmitting}
         />
       </Modal>
 
@@ -151,11 +241,42 @@ export default function Orders() {
             This action cannot be undone.
           </p>
           <div className="flex justify-end gap-3">
-            <button onClick={closeModal} className="btn btn-secondary">
+            <button onClick={closeModal} className="btn btn-secondary" disabled={isSubmitting}>
               Cancel
             </button>
-            <button onClick={handleConfirmDelete} className="btn btn-danger">
-              Delete Order
+            <button 
+              onClick={handleConfirmDelete} 
+              className="btn btn-danger"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Deleting...' : 'Delete Order'}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Bulk Delete Confirmation Modal */}
+      <Modal
+        isOpen={modalMode === 'bulkDelete'}
+        onClose={closeModal}
+        title="Delete Selected Orders"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            Are you sure you want to delete <strong>{selectedOrderIds.length}</strong> selected order{selectedOrderIds.length > 1 ? 's' : ''}?
+            This action cannot be undone.
+          </p>
+          <div className="flex justify-end gap-3">
+            <button onClick={closeModal} className="btn btn-secondary" disabled={isSubmitting}>
+              Cancel
+            </button>
+            <button 
+              onClick={handleConfirmBulkDelete} 
+              className="btn btn-danger"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Deleting...' : `Delete ${selectedOrderIds.length} Order${selectedOrderIds.length > 1 ? 's' : ''}`}
             </button>
           </div>
         </div>

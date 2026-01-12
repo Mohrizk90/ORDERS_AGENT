@@ -1,3 +1,4 @@
+import { useState, useEffect, useCallback } from 'react';
 import { 
   BarChart, 
   Bar, 
@@ -15,7 +16,9 @@ import {
   Area,
   AreaChart
 } from 'recharts';
-import { mockMonthlyData, mockOrders, mockInvoices, formatCurrency } from '../../data/mockData';
+import { getMonthlyData, getOrderStatusDistribution, getInvoiceStatusDistribution } from '../../services/analyticsService';
+import { formatCurrency } from '../../utils/dataTransformers';
+import { CardLoadingSpinner } from '../common/LoadingSpinner';
 
 const COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#06b6d4'];
 
@@ -37,12 +40,38 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 // Comparison Bar Chart (Orders vs Invoices)
-export function ComparisonChart() {
+export function ComparisonChart({ year }) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const result = await getMonthlyData(year);
+      if (result.success) {
+        setData(result.data || []);
+      }
+      setLoading(false);
+    };
+    fetchData();
+  }, [year]);
+
+  if (loading) {
+    return (
+      <div className="card">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Orders vs Invoices (Monthly)</h3>
+        <div className="h-[350px] flex items-center justify-center">
+          <CardLoadingSpinner />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="card">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Orders vs Invoices (Monthly)</h3>
       <ResponsiveContainer width="100%" height={350}>
-        <BarChart data={mockMonthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+        <BarChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis dataKey="month" tick={{ fontSize: 12 }} />
           <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -57,12 +86,38 @@ export function ComparisonChart() {
 }
 
 // Trend Line Chart
-export function TrendChart() {
+export function TrendChart({ year }) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const result = await getMonthlyData(year);
+      if (result.success) {
+        setData(result.data || []);
+      }
+      setLoading(false);
+    };
+    fetchData();
+  }, [year]);
+
+  if (loading) {
+    return (
+      <div className="card">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Trend Analysis</h3>
+        <div className="h-[350px] flex items-center justify-center">
+          <CardLoadingSpinner />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="card">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Trend Analysis</h3>
       <ResponsiveContainer width="100%" height={350}>
-        <LineChart data={mockMonthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+        <LineChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis dataKey="month" tick={{ fontSize: 12 }} />
           <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`} />
@@ -91,12 +146,38 @@ export function TrendChart() {
 }
 
 // Area Chart
-export function AreaTrendChart() {
+export function AreaTrendChart({ year }) {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const result = await getMonthlyData(year);
+      if (result.success) {
+        setData(result.data || []);
+      }
+      setLoading(false);
+    };
+    fetchData();
+  }, [year]);
+
+  if (loading) {
+    return (
+      <div className="card">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue Trend</h3>
+        <div className="h-[350px] flex items-center justify-center">
+          <CardLoadingSpinner />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="card">
       <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue Trend</h3>
       <ResponsiveContainer width="100%" height={350}>
-        <AreaChart data={mockMonthlyData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+        <AreaChart data={data} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
           <defs>
             <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -136,17 +217,35 @@ export function AreaTrendChart() {
 
 // Status Distribution Pie Chart
 export function StatusDistributionChart({ type = 'orders' }) {
-  const data = type === 'orders' ? mockOrders : mockInvoices;
-  
-  const statusCounts = data.reduce((acc, item) => {
-    acc[item.status] = (acc[item.status] || 0) + 1;
-    return acc;
-  }, {});
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const pieData = Object.entries(statusCounts).map(([name, value]) => ({
-    name,
-    value,
-  }));
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const result = type === 'orders' 
+        ? await getOrderStatusDistribution()
+        : await getInvoiceStatusDistribution();
+      if (result.success) {
+        setData(result.data || []);
+      }
+      setLoading(false);
+    };
+    fetchData();
+  }, [type]);
+
+  if (loading) {
+    return (
+      <div className="card">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          {type === 'orders' ? 'Order' : 'Invoice'} Status Distribution
+        </h3>
+        <div className="h-[300px] flex items-center justify-center">
+          <CardLoadingSpinner />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="card">
@@ -156,7 +255,7 @@ export function StatusDistributionChart({ type = 'orders' }) {
       <ResponsiveContainer width="100%" height={300}>
         <PieChart>
           <Pie
-            data={pieData}
+            data={data}
             cx="50%"
             cy="50%"
             innerRadius={60}
@@ -166,7 +265,7 @@ export function StatusDistributionChart({ type = 'orders' }) {
             dataKey="value"
             label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
           >
-            {pieData.map((entry, index) => (
+            {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
             ))}
           </Pie>
@@ -195,14 +294,14 @@ export function SparkLineChart({ data, color = '#3b82f6', height = 60 }) {
 }
 
 // Default export with all charts
-export default function Charts() {
+export default function Charts({ year = new Date().getFullYear() }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ComparisonChart />
-        <TrendChart />
+        <ComparisonChart year={year} />
+        <TrendChart year={year} />
       </div>
-      <AreaTrendChart />
+      <AreaTrendChart year={year} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <StatusDistributionChart type="orders" />
         <StatusDistributionChart type="invoices" />

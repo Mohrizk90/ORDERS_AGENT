@@ -1,56 +1,93 @@
-import { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader, Sparkles, FileText, Receipt, BarChart3, Trash2, RefreshCw } from 'lucide-react';
-import { mockOrders, mockInvoices, mockStats, formatCurrency, formatDate } from '../data/mockData';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { Send, Bot, User, Loader, Sparkles, FileText, Receipt, BarChart3, RefreshCw } from 'lucide-react';
+import { getOrders } from '../services/ordersService';
+import { getInvoices } from '../services/invoicesService';
+import { getDashboardStats } from '../services/statsService';
+import { formatCurrency, formatDate } from '../utils/dataTransformers';
 
-// Simulated AI responses based on user input
-const processCommand = (message) => {
+// Process command and get response
+const processCommand = async (message) => {
   const lowerMessage = message.toLowerCase();
   
   // Show orders
   if (lowerMessage.includes('show') && lowerMessage.includes('order')) {
-    const orders = mockOrders.slice(0, 5);
+    const result = await getOrders({ page: 1, limit: 5 });
+    if (result.success) {
+      const orders = result.data.data || [];
+      return {
+        type: 'orders',
+        text: `Here are the latest ${orders.length} orders:`,
+        data: orders,
+      };
+    }
     return {
-      type: 'orders',
-      text: `Here are the latest ${orders.length} orders:`,
-      data: orders,
+      type: 'error',
+      text: 'Sorry, I could not fetch the orders. Please try again.',
     };
   }
   
   // Show invoices
   if (lowerMessage.includes('show') && lowerMessage.includes('invoice')) {
-    const invoices = mockInvoices.slice(0, 5);
+    const result = await getInvoices({ page: 1, limit: 5 });
+    if (result.success) {
+      const invoices = result.data.data || [];
+      return {
+        type: 'invoices',
+        text: `Here are the latest ${invoices.length} invoices:`,
+        data: invoices,
+      };
+    }
     return {
-      type: 'invoices',
-      text: `Here are the latest ${invoices.length} invoices:`,
-      data: invoices,
+      type: 'error',
+      text: 'Sorry, I could not fetch the invoices. Please try again.',
     };
   }
   
   // Stats/summary
   if (lowerMessage.includes('stat') || lowerMessage.includes('summary') || lowerMessage.includes('total')) {
+    const result = await getDashboardStats();
+    if (result.success) {
+      return {
+        type: 'stats',
+        text: 'Here\'s your current summary:',
+        data: result.data,
+      };
+    }
     return {
-      type: 'stats',
-      text: 'Here\'s your current summary:',
-      data: mockStats,
+      type: 'error',
+      text: 'Sorry, I could not fetch the statistics. Please try again.',
     };
   }
   
   // High value transactions
   if (lowerMessage.includes('high value') || lowerMessage.includes('alert')) {
-    const highValue = [...mockOrders, ...mockInvoices]
-      .filter(item => item.total_amount >= 50000)
-      .slice(0, 5);
+    const [ordersResult, invoicesResult] = await Promise.all([
+      getOrders({ page: 1, limit: 100 }),
+      getInvoices({ page: 1, limit: 100 }),
+    ]);
+    
+    const allItems = [
+      ...(ordersResult.data?.data || []),
+      ...(invoicesResult.data?.data || []),
+    ].filter(item => item.total_amount >= 50000).slice(0, 5);
+    
     return {
       type: 'high_value',
-      text: `Found ${highValue.length} high-value transactions (≥$50,000):`,
-      data: highValue,
+      text: `Found ${allItems.length} high-value transactions (≥$50,000):`,
+      data: allItems,
     };
   }
   
   // Pending items
   if (lowerMessage.includes('pending')) {
-    const pendingOrders = mockOrders.filter(o => o.status === 'Pending');
-    const pendingInvoices = mockInvoices.filter(i => i.status === 'Pending');
+    const [ordersResult, invoicesResult] = await Promise.all([
+      getOrders({ status: 'Pending', page: 1, limit: 100 }),
+      getInvoices({ status: 'Pending', page: 1, limit: 100 }),
+    ]);
+    
+    const pendingOrders = ordersResult.data?.data || [];
+    const pendingInvoices = invoicesResult.data?.data || [];
+    
     return {
       type: 'pending',
       text: `You have ${pendingOrders.length} pending orders and ${pendingInvoices.length} pending invoices.`,
@@ -87,16 +124,21 @@ const processCommand = (message) => {
   
   // Search by supplier
   if (lowerMessage.includes('from') || lowerMessage.includes('supplier')) {
-    // Extract supplier name (simplified)
-    const suppliers = ['techcorp', 'mega', 'quick', 'global', 'acme', 'prime', 'tokyo'];
-    const foundSupplier = suppliers.find(s => lowerMessage.includes(s));
-    
-    if (foundSupplier) {
-      const orders = mockOrders.filter(o => o.supplier.toLowerCase().includes(foundSupplier));
-      const invoices = mockInvoices.filter(i => i.supplier.toLowerCase().includes(foundSupplier));
+    // Extract supplier name
+    const match = lowerMessage.match(/from\s+([a-z]+)/i);
+    if (match) {
+      const supplierSearch = match[1];
+      const [ordersResult, invoicesResult] = await Promise.all([
+        getOrders({ search: supplierSearch, page: 1, limit: 10 }),
+        getInvoices({ search: supplierSearch, page: 1, limit: 10 }),
+      ]);
+      
+      const orders = ordersResult.data?.data || [];
+      const invoices = invoicesResult.data?.data || [];
+      
       return {
         type: 'search',
-        text: `Found ${orders.length} orders and ${invoices.length} invoices matching your search.`,
+        text: `Found ${orders.length} orders and ${invoices.length} invoices matching "${supplierSearch}".`,
         data: { orders, invoices },
       };
     }
@@ -262,7 +304,7 @@ export default function Assistant() {
     scrollToBottom();
   }, [messages]);
 
-  const handleSend = async (text = input) => {
+  const handleSend = useCallback(async (text = input) => {
     if (!text.trim()) return;
 
     // Add user message
@@ -277,11 +319,8 @@ export default function Assistant() {
     setInput('');
     setIsTyping(true);
 
-    // Simulate AI processing delay
-    await new Promise((resolve) => setTimeout(resolve, 800 + Math.random() * 700));
-
     // Process command and get response
-    const response = processCommand(text);
+    const response = await processCommand(text);
     
     const botMessage = {
       id: (Date.now() + 1).toString(),
@@ -294,7 +333,7 @@ export default function Assistant() {
 
     setMessages((prev) => [...prev, botMessage]);
     setIsTyping(false);
-  };
+  }, [input]);
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {

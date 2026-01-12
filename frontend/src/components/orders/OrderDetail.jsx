@@ -1,10 +1,28 @@
-import { X, FileText, Calendar, DollarSign, Hash, Truck, Download, Edit, Trash2 } from 'lucide-react';
-import { formatCurrency, formatDate, formatDateTime, getStatusColor, mockOrderItems } from '../../data/mockData';
+import { useState, useEffect } from 'react';
+import { FileText, Calendar, DollarSign, Truck, Download, Edit, Trash2 } from 'lucide-react';
+import { getOrderItems } from '../../services/ordersService';
+import { formatCurrency, formatDate, formatDateTime, getStatusColor } from '../../utils/dataTransformers';
+import { CardLoadingSpinner } from '../common/LoadingSpinner';
 
 export default function OrderDetail({ order, onClose, onEdit, onDelete }) {
-  if (!order) return null;
+  const [orderItems, setOrderItems] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const orderItems = mockOrderItems.filter(item => item.order_id === order.id);
+  useEffect(() => {
+    const fetchItems = async () => {
+      if (order?.id) {
+        setLoading(true);
+        const result = await getOrderItems(order.id);
+        if (result.success) {
+          setOrderItems(result.data || []);
+        }
+        setLoading(false);
+      }
+    };
+    fetchItems();
+  }, [order?.id]);
+
+  if (!order) return null;
 
   return (
     <div className="space-y-6">
@@ -85,7 +103,9 @@ export default function OrderDetail({ order, onClose, onEdit, onDelete }) {
           </button>
         </div>
         
-        {orderItems.length > 0 ? (
+        {loading ? (
+          <CardLoadingSpinner />
+        ) : orderItems.length > 0 ? (
           <div className="overflow-x-auto border border-gray-200 rounded-xl">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -127,7 +147,7 @@ export default function OrderDetail({ order, onClose, onEdit, onDelete }) {
                     Total
                   </td>
                   <td className="px-4 py-3 text-sm font-bold text-gray-900 text-right">
-                    {formatCurrency(orderItems.reduce((sum, item) => sum + item.amount, 0))}
+                    {formatCurrency(orderItems.reduce((sum, item) => sum + (item.amount || 0), 0))}
                   </td>
                 </tr>
               </tfoot>

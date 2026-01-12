@@ -1,8 +1,13 @@
-import { Download, Calendar } from 'lucide-react';
+import { useState } from 'react';
+import { Download } from 'lucide-react';
 import Charts from '../components/analytics/Charts';
 import MonthlyReport from '../components/analytics/MonthlyReport';
 
 export default function Analytics() {
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
@@ -12,10 +17,14 @@ export default function Analytics() {
           <p className="text-gray-500 mt-1">Visualize your data and track performance</p>
         </div>
         <div className="flex items-center gap-3">
-          <select className="input max-w-[200px]">
-            <option value="2024">2024</option>
-            <option value="2023">2023</option>
-            <option value="2022">2022</option>
+          <select 
+            className="input max-w-[200px]"
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+          >
+            {years.map(year => (
+              <option key={year} value={year}>{year}</option>
+            ))}
           </select>
           <button className="btn btn-secondary">
             <Download className="w-4 h-4 mr-2" />
@@ -25,10 +34,10 @@ export default function Analytics() {
       </div>
 
       {/* Charts */}
-      <Charts />
+      <Charts year={selectedYear} />
 
       {/* Monthly Report Table */}
-      <MonthlyReport />
+      <MonthlyReport year={selectedYear} />
     </div>
   );
 }

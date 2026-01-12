@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Save, Bell, DollarSign, Users, Database, Shield } from 'lucide-react';
+import { Save, Bell, DollarSign, Users, Database, Shield, RefreshCw, CheckCircle, XCircle, AlertCircle, Info, Loader } from 'lucide-react';
+import { testSupabaseConnection } from '../utils/testSupabaseConnection';
 
 export default function Settings() {
   const [settings, setSettings] = useState({
@@ -10,9 +11,60 @@ export default function Settings() {
     defaultCurrency: 'USD',
   });
 
+  const [connectionTest, setConnectionTest] = useState(null);
+  const [testingConnection, setTestingConnection] = useState(false);
+
   const handleSave = () => {
     console.log('Saving settings:', settings);
     // Here you would call the API to save settings
+  };
+
+  const handleTestConnection = async () => {
+    setTestingConnection(true);
+    setConnectionTest(null);
+    
+    try {
+      const result = await testSupabaseConnection();
+      setConnectionTest(result);
+    } catch (error) {
+      setConnectionTest({
+        connected: false,
+        error: error.message || 'Failed to test connection',
+        tests: [],
+      });
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'success':
+        return <CheckCircle className="w-5 h-5 text-green-600" />;
+      case 'error':
+        return <XCircle className="w-5 h-5 text-red-600" />;
+      case 'warning':
+        return <AlertCircle className="w-5 h-5 text-yellow-600" />;
+      case 'info':
+        return <Info className="w-5 h-5 text-blue-600" />;
+      default:
+        return null;
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'success':
+        return 'badge-green';
+      case 'error':
+        return 'badge-red';
+      case 'warning':
+        return 'badge-yellow';
+      case 'info':
+        return 'badge-blue';
+      default:
+        return 'badge-gray';
+    }
   };
 
   return (
@@ -147,6 +199,111 @@ export default function Settings() {
         </div>
       </div>
 
+      {/* Supabase Connection Test */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Database className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">Supabase Connection Test</h2>
+              <p className="text-sm text-gray-500">Test your database connection and verify tables</p>
+            </div>
+          </div>
+          <button
+            onClick={handleTestConnection}
+            disabled={testingConnection}
+            className="btn btn-secondary"
+          >
+            {testingConnection ? (
+              <>
+                <Loader className="w-4 h-4 mr-2 animate-spin" />
+                Testing...
+              </>
+            ) : (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Test Connection
+              </>
+            )}
+          </button>
+        </div>
+
+        {connectionTest && (
+          <div className="space-y-4">
+            {/* Connection Summary */}
+            <div className={`p-4 rounded-lg border-2 ${
+              connectionTest.connected 
+                ? 'bg-green-50 border-green-200' 
+                : connectionTest.error
+                ? 'bg-red-50 border-red-200'
+                : 'bg-yellow-50 border-yellow-200'
+            }`}>
+              <div className="flex items-start gap-3">
+                {connectionTest.connected ? (
+                  <CheckCircle className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
+                ) : connectionTest.error ? (
+                  <XCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-6 h-6 text-yellow-600 flex-shrink-0 mt-0.5" />
+                )}
+                <div className="flex-1">
+                  <h3 className="font-semibold text-gray-900 mb-1">
+                    {connectionTest.connected 
+                      ? 'Connection Successful!' 
+                      : connectionTest.error
+                      ? 'Connection Failed'
+                      : 'Connection Status'}
+                  </h3>
+                  <div className="space-y-1 text-sm">
+                    <p><strong>URL:</strong> {connectionTest.url}</p>
+                    <p><strong>API Key:</strong> {connectionTest.hasKey ? '✓ Configured' : '✗ Missing'}</p>
+                    <p><strong>Mock Data:</strong> {connectionTest.useMockData ? 'Enabled' : 'Disabled'}</p>
+                    {connectionTest.error && (
+                      <p className="text-red-600 font-medium mt-2">Error: {connectionTest.error}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Test Results */}
+            {connectionTest.tests.length > 0 && (
+              <div>
+                <h3 className="font-semibold text-gray-900 mb-3">Test Results</h3>
+                <div className="space-y-2">
+                  {connectionTest.tests.map((test, index) => (
+                    <div
+                      key={index}
+                      className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200"
+                    >
+                      {getStatusIcon(test.status)}
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="font-medium text-gray-900">{test.name}</p>
+                          <span className={getStatusBadge(test.status)}>
+                            {test.status}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600">{test.message}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {!connectionTest && !testingConnection && (
+          <div className="text-center py-8 text-gray-500">
+            <Database className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+            <p>Click "Test Connection" to verify your Supabase setup</p>
+          </div>
+        )}
+      </div>
+
       {/* Integration Status */}
       <div className="card">
         <div className="flex items-center gap-3 mb-6">
@@ -170,7 +327,9 @@ export default function Settings() {
                 <p className="text-sm text-gray-500">Database connection</p>
               </div>
             </div>
-            <span className="badge-green">Connected</span>
+            <span className={connectionTest?.connected ? 'badge-green' : connectionTest?.error ? 'badge-red' : 'badge-yellow'}>
+              {connectionTest?.connected ? 'Connected' : connectionTest ? 'Not Connected' : 'Unknown'}
+            </span>
           </div>
 
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">

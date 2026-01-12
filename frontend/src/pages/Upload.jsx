@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { Upload as UploadIcon, FileText, X, CheckCircle, AlertCircle, Loader } from 'lucide-react';
+import { Upload as UploadIcon, FileText, X, CheckCircle, AlertCircle, Loader, ExternalLink } from 'lucide-react';
+import { uploadDocument } from '../services/uploadService';
+import { useToast } from '../components/common/Toast';
 
 export default function Upload() {
   const [files, setFiles] = useState([]);
   const [isDragging, setIsDragging] = useState(false);
+  const toast = useToast();
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -21,6 +24,10 @@ export default function Upload() {
     const droppedFiles = Array.from(e.dataTransfer.files).filter(
       (file) => file.type === 'application/pdf'
     );
+    if (droppedFiles.length === 0) {
+      toast.warning('Only PDF files are supported');
+      return;
+    }
     addFiles(droppedFiles);
   };
 
@@ -35,47 +42,59 @@ export default function Upload() {
       file,
       status: 'pending', // pending, uploading, success, error
       progress: 0,
+      result: null,
     }));
     setFiles((prev) => [...prev, ...filesWithStatus]);
     
-    // Simulate upload for each file
+    // Start upload for each file
     filesWithStatus.forEach((fileItem) => {
-      simulateUpload(fileItem.id);
+      processFile(fileItem.id, fileItem.file);
     });
   };
 
-  const simulateUpload = (fileId) => {
+  const processFile = async (fileId, file) => {
     // Set uploading status
     setFiles((prev) =>
       prev.map((f) => (f.id === fileId ? { ...f, status: 'uploading' } : f))
     );
 
-    // Simulate progress
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 30;
-      if (progress >= 100) {
-        progress = 100;
-        clearInterval(interval);
-        // Random success/error for demo
-        const isSuccess = Math.random() > 0.2;
-        setFiles((prev) =>
-          prev.map((f) =>
-            f.id === fileId
-              ? { ...f, status: isSuccess ? 'success' : 'error', progress: 100 }
-              : f
-          )
-        );
-      } else {
-        setFiles((prev) =>
-          prev.map((f) => (f.id === fileId ? { ...f, progress } : f))
-        );
-      }
-    }, 500);
+    // Upload with progress tracking
+    const result = await uploadDocument(file, (progress) => {
+      setFiles((prev) =>
+        prev.map((f) => (f.id === fileId ? { ...f, progress } : f))
+      );
+    });
+
+    // Update status based on result
+    setFiles((prev) =>
+      prev.map((f) =>
+        f.id === fileId
+          ? {
+              ...f,
+              status: result.success ? 'success' : 'error',
+              progress: 100,
+              result: result.data || { error: result.error },
+            }
+          : f
+      )
+    );
+
+    if (result.success) {
+      toast.success(`${file.name} processed successfully`);
+    } else {
+      toast.error(`Failed to process ${file.name}: ${result.error}`);
+    }
   };
 
   const removeFile = (fileId) => {
     setFiles((prev) => prev.filter((f) => f.id !== fileId));
+  };
+
+  const retryFile = (fileId) => {
+    const fileItem = files.find(f => f.id === fileId);
+    if (fileItem) {
+      processFile(fileId, fileItem.file);
+    }
   };
 
   const getStatusIcon = (status) => {
@@ -164,14 +183,35 @@ export default function Upload() {
                     </div>
                   )}
                   {fileItem.status === 'success' && (
-                    <p className="text-xs text-green-600 mt-1">
-                      Document processed successfully
-                    </p>
+                    <div className="mt-1">
+                      <p className="text-xs text-green-600">
+                        Document processed successfully
+                      </p>
+                      {fileItem.result?.sheetUrl && (
+                        <a 
+                          href={fileItem.result.sheetUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary-600 hover:underline inline-flex items-center gap-1 mt-1"
+                        >
+                          View in Google Sheets
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
                   )}
                   {fileItem.status === 'error' && (
-                    <p className="text-xs text-red-600 mt-1">
-                      Failed to process document
-                    </p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <p className="text-xs text-red-600">
+                        {fileItem.result?.error || 'Failed to process document'}
+                      </p>
+                      <button 
+                        onClick={() => retryFile(fileItem.id)}
+                        className="text-xs text-primary-600 hover:underline"
+                      >
+                        Retry
+                      </button>
+                    </div>
                   )}
                 </div>
                 <button
