@@ -187,9 +187,9 @@ export default function Upload() {
                       <p className="text-xs text-green-600">
                         Document processed successfully
                       </p>
-                      {fileItem.result?.sheetUrl && (
+                      {(fileItem.result?.spreadsheetUrl || fileItem.result?.sheetUrl) && (
                         <a 
-                          href={fileItem.result.sheetUrl} 
+                          href={fileItem.result.spreadsheetUrl || fileItem.result.sheetUrl} 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="text-xs text-primary-600 hover:underline inline-flex items-center gap-1 mt-1"
@@ -197,6 +197,12 @@ export default function Upload() {
                           View in Google Sheets
                           <ExternalLink className="w-3 h-3" />
                         </a>
+                      )}
+                      {fileItem.result?.type && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Type: {fileItem.result.type === 'order' ? 'Order' : 'Invoice'}
+                          {fileItem.result.supplier && ` • ${fileItem.result.supplier}`}
+                        </p>
                       )}
                     </div>
                   )}
