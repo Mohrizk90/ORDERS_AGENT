@@ -80,7 +80,11 @@ export default function Upload() {
     );
 
     if (result.success) {
-      toast.success(`${file.name} processed successfully`);
+      if (result.data?.status === 'processing') {
+        toast.success(`${file.name} received and processing started`);
+      } else {
+        toast.success(`${file.name} processed successfully`);
+      }
     } else {
       toast.error(`Failed to process ${file.name}: ${result.error}`);
     }
@@ -184,8 +188,10 @@ export default function Upload() {
                   )}
                   {fileItem.status === 'success' && (
                     <div className="mt-1">
-                      <p className="text-xs text-green-600">
-                        Document processed successfully
+                      <p className={`text-xs ${fileItem.result?.status === 'processing' ? 'text-blue-600' : 'text-green-600'}`}>
+                        {fileItem.result?.status === 'processing' 
+                          ? 'Document received, processing in background...'
+                          : fileItem.result?.message || 'Document processed successfully'}
                       </p>
                       {(fileItem.result?.spreadsheetUrl || fileItem.result?.sheetUrl) && (
                         <a 

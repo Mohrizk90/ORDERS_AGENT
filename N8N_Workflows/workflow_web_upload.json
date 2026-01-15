@@ -1,82 +1,5 @@
 {
-  "name": "Order Processing with Web Upload",
   "nodes": [
-    {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "upload-document",
-        "responseMode": "responseNode",
-        "options": {
-          "rawBody": true
-        }
-      },
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [
-        3312,
-        960
-      ],
-      "id": "web-upload-trigger-001",
-      "name": "Webhook_Web_Upload",
-      "webhookId": "web-upload-webhook-001"
-    },
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "source-type-web",
-              "name": "source_type",
-              "value": "web_upload",
-              "type": "string"
-            },
-            {
-              "id": "source-chat-id-empty",
-              "name": "chat_id",
-              "value": "",
-              "type": "string"
-            },
-            {
-              "id": "source-reply-to-empty",
-              "name": "reply_to",
-              "value": "",
-              "type": "string"
-            },
-            {
-              "id": "upload-id",
-              "name": "upload_id",
-              "value": "={{ $json.body?.upload_id || $now.toMillis() }}",
-              "type": "string"
-            }
-          ]
-        },
-        "includeOtherFields": true,
-        "options": {}
-      },
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        3568,
-        960
-      ],
-      "id": "set-source-web-001",
-      "name": "Set_Source_Web_Upload"
-    },
-    {
-      "parameters": {
-        "operation": "pdf",
-        "binaryPropertyName": "file",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.extractFromFile",
-      "typeVersion": 1,
-      "position": [
-        4336,
-        960
-      ],
-      "id": "parse-pdf-web-upload-001",
-      "name": "parse_pdf_data_extract_web"
-    },
     {
       "parameters": {
         "rules": {
@@ -136,7 +59,7 @@
                 "conditions": [
                   {
                     "id": "web-upload-check-order",
-                    "leftValue": "={{ $('Set_Source').item.json.source_type }}",
+                    "leftValue": "={{ $('Set_Source_Web_Upload').item.json.source_type }}",
                     "rightValue": "web_upload",
                     "operator": {
                       "type": "string",
@@ -154,10 +77,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.3,
       "position": [
-        7920,
-        1488
+        -4672,
+        352
       ],
-      "id": "switch-source-order-web-001",
+      "id": "ccf28423-f237-4740-b181-0b6a844591c4",
       "name": "Switch_Source_Order"
     },
     {
@@ -219,7 +142,7 @@
                 "conditions": [
                   {
                     "id": "web-upload-check-invoice",
-                    "leftValue": "={{ $('Set_Source').item.json.source_type }}",
+                    "leftValue": "={{ $('Set_Source_Web_Upload').item.json.source_type }}",
                     "rightValue": "web_upload",
                     "operator": {
                       "type": "string",
@@ -237,10 +160,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.3,
       "position": [
-        7920,
-        1296
+        -4768,
+        -272
       ],
-      "id": "switch-source-invoice-web-001",
+      "id": "84693d8a-878e-4b02-973f-169af0be3770",
       "name": "Switch_Source_Invoice"
     },
     {
@@ -265,10 +188,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        8624,
-        1680
+        -3968,
+        544
       ],
-      "id": "respond-web-order-001",
+      "id": "2ebc5217-3325-4588-a3cb-ff7b95ff3266",
       "name": "Respond_Web_Order"
     },
     {
@@ -293,101 +216,11 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        8624,
-        1104
+        -4288,
+        -224
       ],
-      "id": "respond-web-invoice-001",
+      "id": "37d815d6-44a0-4053-9725-d8702d23a82e",
       "name": "Respond_Web_Invoice"
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={\n  \"success\": false,\n  \"message\": \"Error processing document\",\n  \"error\": \"{{ $json.error || 'Unknown error occurred' }}\"\n}",
-        "options": {
-          "responseCode": "500",
-          "responseHeaders": {
-            "entries": [
-              {
-                "name": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "name": "Access-Control-Allow-Origin",
-                "value": "*"
-              }
-            ]
-          }
-        }
-      },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [
-        5296,
-        800
-      ],
-      "id": "respond-web-error-001",
-      "name": "Respond_Web_Error"
-    },
-    {
-      "parameters": {
-        "rules": {
-          "values": [
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $binary?.file?.mimeType }}",
-                    "rightValue": "pdf",
-                    "operator": {
-                      "type": "string",
-                      "operation": "contains"
-                    },
-                    "id": "web-pdf-check"
-                  }
-                ],
-                "combinator": "and"
-              }
-            },
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 2
-                },
-                "conditions": [
-                  {
-                    "id": "web-non-pdf-check",
-                    "leftValue": "={{ $binary?.file?.mimeType }}",
-                    "rightValue": "pdf",
-                    "operator": {
-                      "type": "string",
-                      "operation": "notContains"
-                    }
-                  }
-                ],
-                "combinator": "and"
-              }
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 3.3,
-      "position": [
-        3936,
-        960
-      ],
-      "id": "switch-pdf-gate-web-001",
-      "name": "Switch_pdf_gate_web"
     },
     {
       "parameters": {
@@ -397,10 +230,10 @@
       "type": "n8n-nodes-base.aggregate",
       "typeVersion": 1,
       "position": [
-        7712,
-        1488
+        -5024,
+        368
       ],
-      "id": "ec5c41c2-2748-4a01-b809-c8baa3d3efc3",
+      "id": "95577131-cf77-4dd1-8a55-77f45c7e4e14",
       "name": "Aggregate_Order"
     },
     {
@@ -411,10 +244,10 @@
       "type": "n8n-nodes-base.aggregate",
       "typeVersion": 1,
       "position": [
-        7712,
-        1296
+        -5008,
+        -256
       ],
-      "id": "dd8da15f-a8f4-4102-9392-c6a724b620fe",
+      "id": "9af8a872-a402-4639-80bb-9faac4f96d95",
       "name": "Aggregate_Invoice"
     },
     {
@@ -423,15 +256,17 @@
         "subject": "=✅ Order Processed: {{ $('order_id').item.json.order_id }}",
         "emailType": "text",
         "message": "=Order processed successfully!\n\nOrder ID: {{ $('order_id').item.json.order_id }}\nDate: {{ $('order_id').item.json.order_date }}\nSupplier: {{ $('order_id').item.json.supplier }}\n\nSpreadsheet: https://docs.google.com/spreadsheets/d/{{ $('order_spreadsheet').item.json.spreadsheetId }}",
-        "options": {}
+        "options": {
+          "appendAttribution": false
+        }
       },
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        8256,
-        1584
+        -3968,
+        368
       ],
-      "id": "bff5a4f8-d258-401a-a465-d70a8193f8e7",
+      "id": "23df205c-1c49-4a72-861d-5adb8b754996",
       "name": "Reply_Gmail_Order",
       "webhookId": "773f3b2c-34dc-4ec3-83f6-162d735bf8a9",
       "credentials": {
@@ -446,16 +281,17 @@
         "chatId": "={{ $('Set_Source').item.json.chat_id }}",
         "text": "=✅ Order processed successfully!\n\n📋 Order ID: {{ $('order_id').item.json.order_id }}\n📅 Date: {{ $('order_id').item.json.order_date }}\n🏢 Supplier: {{ $('order_id').item.json.supplier }}\n\n📊 Spreadsheet: https://docs.google.com/spreadsheets/d/{{ $('order_spreadsheet').item.json.spreadsheetId }}",
         "additionalFields": {
+          "appendAttribution": false,
           "parse_mode": "Markdown"
         }
       },
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        8256,
-        1392
+        -3968,
+        208
       ],
-      "id": "72a9ddb8-bbfd-42e7-b8fc-8a8774a9a1c7",
+      "id": "942d5ed9-ad62-4505-83e5-773d8f2c82b2",
       "name": "Reply_Telegram_Order",
       "webhookId": "fe43ee87-d77e-4a44-9b3d-82686e948418",
       "credentials": {
@@ -471,15 +307,17 @@
         "subject": "=✅ Invoice Processed: {{ $('invoice_id').item.json.invoice_id }}",
         "emailType": "text",
         "message": "=Invoice processed successfully!\n\nInvoice ID: {{ $('invoice_id').item.json.invoice_id }}\nDate: {{ $('invoice_id').item.json.invoice_date }}\nSupplier: {{ $('invoice_id').item.json.supplier }}\n\nSpreadsheet: https://docs.google.com/spreadsheets/d/{{ $('Invoice_Spreadsheet').item.json.spreadsheetId }}",
-        "options": {}
+        "options": {
+          "appendAttribution": false
+        }
       },
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        8400,
-        1200
+        -4288,
+        -400
       ],
-      "id": "729bd3e9-4f44-47b8-a7dd-764475591b25",
+      "id": "aef47d5f-c2dd-4774-af49-a8a9d9e18506",
       "name": "Reply_Gmail_Invoice",
       "webhookId": "7287c85f-bfd9-4185-a447-b27e4eec2bc5",
       "credentials": {
@@ -494,16 +332,17 @@
         "chatId": "={{ $('Set_Source').item.json.chat_id }}",
         "text": "=✅ Invoice processed successfully!\n\n📋 Invoice ID: {{ $('invoice_id').item.json.invoice_id }}\n📅 Date: {{ $('invoice_id').item.json.invoice_date }}\n🏢 Supplier: {{ $('invoice_id').item.json.supplier }}\n\n📊 Spreadsheet: https://docs.google.com/spreadsheets/d/{{ $('Invoice_Spreadsheet').item.json.spreadsheetId }}",
         "additionalFields": {
+          "appendAttribution": false,
           "parse_mode": "Markdown"
         }
       },
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        8400,
-        1008
+        -4288,
+        -608
       ],
-      "id": "7f71f393-cbc4-4735-9731-faf0123058d1",
+      "id": "e18d69b0-b608-4524-b360-07b40159820e",
       "name": "Reply_Telegram_Invoice",
       "webhookId": "9725ec55-f440-40b3-bf21-075e5ae60330",
       "credentials": {
@@ -552,10 +391,10 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        7264,
-        1488
+        -5472,
+        368
       ],
-      "id": "8ab2e265-60a9-43e8-963b-12b6f7c87681",
+      "id": "95068c29-ea1c-408f-bb03-73af003d5cfb",
       "name": "insert_order_items",
       "credentials": {
         "supabaseApi": {
@@ -696,10 +535,10 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        6608,
-        1488
+        -6128,
+        368
       ],
-      "id": "3a2c030f-ba36-4278-a0a2-d7f674575ba9",
+      "id": "e527e9fe-2b41-434b-96db-a08e3b3dd74c",
       "name": "Append_Header_with_OrderDetails",
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -724,10 +563,10 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        6224,
-        1488
+        -6512,
+        368
       ],
-      "id": "020acf77-be3e-4ffd-9dfe-b72169e94d87",
+      "id": "eeaf240e-6c94-41f2-83ef-0ff1eff3f3fc",
       "name": "order_spreadsheet",
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -753,10 +592,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        6832,
-        1488
+        -5904,
+        368
       ],
-      "id": "27da6451-10cd-4a65-b8fd-d59d36493513",
+      "id": "9cd5ed80-34b4-4102-b176-274c291799c9",
       "name": "Line_items1"
     },
     {
@@ -887,10 +726,10 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        7472,
-        1488
+        -5264,
+        368
       ],
-      "id": "f5586c11-161b-4258-9a66-14f0cbecaade",
+      "id": "c002da66-f634-42f7-8919-1057355ac032",
       "name": "Append_Line_items1",
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -907,10 +746,10 @@
       "type": "n8n-nodes-base.splitOut",
       "typeVersion": 1,
       "position": [
-        7056,
-        1488
+        -5680,
+        368
       ],
-      "id": "4dd3455b-5d73-4225-b9bc-ac4d32d3f89d",
+      "id": "f2d455ea-3591-4f06-8ab2-6f5367d34453",
       "name": "Split Out1"
     },
     {
@@ -984,10 +823,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        6416,
-        1488
+        -6320,
+        368
       ],
-      "id": "d9e944d7-568b-47e2-b10b-06718c8f8b29",
+      "id": "25603bdf-1d1a-41c5-a787-781009d38a3d",
       "name": "Set_Header_Vars1"
     },
     {
@@ -1019,10 +858,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        6000,
-        1488
+        -6736,
+        368
       ],
-      "id": "9c5a9875-e23d-4777-ba15-03146330f926",
+      "id": "3e3f7a9e-6cd9-46e8-acdc-1f3793ec4245",
       "name": "order_id"
     },
     {
@@ -1056,10 +895,10 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        5792,
-        1488
+        -6944,
+        368
       ],
-      "id": "37ea9366-74c2-4396-a734-e8e1f793a0cf",
+      "id": "c47ed2d9-478c-4c78-99a0-dca4a866b507",
       "name": "Insert_order",
       "credentials": {
         "supabaseApi": {
@@ -1167,10 +1006,10 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        6592,
-        1296
+        -6128,
+        -256
       ],
-      "id": "10c77d96-19ad-4bcb-982c-2c25f7cdaf20",
+      "id": "1155fb08-851c-497e-ba47-ef7793165b04",
       "name": "Append_Header_with_InvDealis",
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -1195,10 +1034,10 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        6224,
-        1296
+        -6496,
+        -256
       ],
-      "id": "bd0817b6-d70c-4199-802d-3def0c904dbc",
+      "id": "370a9e02-d547-4523-9edd-96178ed200ae",
       "name": "Invoice_Spreadsheet",
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -1242,10 +1081,10 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        5792,
-        1296
+        -6928,
+        -256
       ],
-      "id": "68ccc40b-ea36-4ca7-b448-0da665d2e01d",
+      "id": "5737ba73-fb02-4b77-9321-e15e5005ba2d",
       "name": "Insert_Invoice",
       "credentials": {
         "supabaseApi": {
@@ -1310,10 +1149,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.3,
       "position": [
-        5296,
-        1360
+        -7344,
+        64
       ],
-      "id": "69ce0824-9699-45ec-a343-9dbc2dbb479c",
+      "id": "bc560c0b-b2b1-43b3-8dc6-7b83e4fe6052",
       "name": "Switch_Order_Invoice"
     },
     {
@@ -1330,7 +1169,6 @@
               "role": "system",
               "content": "=Analyze the invoice text (which may be in Spanish or any other language) and extract the following fields. Return ONLY valid raw JSON (no markdown, no code blocks, no explanations).\n\nFields to extract:\n\nsupplier\n\ninvoice_date\n\ntotal_amount\n\nnet_amount\n\nexchange_rate\n\nfinancing_type\n\ntype → must be \"invoice\" or \"order\"\n\nLine items: array of objects with:\n\nid\n\nproduct_code\n\ndescription\n\nunits\n\nunit_price\n\nbatch_number\n\namount\n\nRules:\n\nExtract the item code from each line item and use it for both id and product_code.\nIf no code exists, return null.\n\nIf a value is missing or not found, return null.\n\nNumbers must be numeric (no quotes, no commas as thousand separators).\nConvert \"24,00\" → 24.00\n\nDates must be normalized to YYYY-MM-DD when possible.\n\nExtract line items even if the formatting is inconsistent or partially missing.\n\nIgnore irrelevant or noisy text.\n\nRaw output must begin with { and end with }.\n\nClassification rule (type):\n\nIf the document contains CIF/VAT fields (e.g., \"CIF\", \"NIF\", \"VAT\"), classify as \"invoice\".\n\nIf no CIF/VAT appears and total_amount equals net_amount OR the format matches typical order sheets → classify as \"order\".\n\nText to analyze:\n{{ $json.text }}"
             }
-            
           ]
         },
         "builtInTools": {},
@@ -1339,10 +1177,10 @@
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 2,
       "position": [
-        4720,
-        1376
+        -7952,
+        64
       ],
-      "id": "d0b6e89e-5167-4514-af44-3723835490dc",
+      "id": "cfd8e948-54fa-4cb2-b3e9-f968103eff20",
       "name": "GPT4O Message Analysis",
       "credentials": {
         "openAiApi": {
@@ -1360,10 +1198,10 @@
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1,
       "position": [
-        4336,
-        1040
+        -8896,
+        -208
       ],
-      "id": "0563090d-cb01-4462-82ca-a4ca6c73cc5c",
+      "id": "e6b59ac6-cedb-407d-ab26-195d54c9411d",
       "name": "parse_pdf_data_extract_telegram"
     },
     {
@@ -1375,10 +1213,10 @@
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1,
       "position": [
-        4224,
-        1248
+        -8896,
+        -32
       ],
-      "id": "d5a2ec89-4fbb-4f71-81e9-7041e1134445",
+      "id": "6237d0f5-2c49-400a-b83b-93bfd485bef0",
       "name": "parse_pdf_data_extract_gmail"
     },
     {
@@ -1390,10 +1228,10 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        4160,
-        1040
+        -9088,
+        -208
       ],
-      "id": "f0c99c5f-db6f-4ba9-b260-60b8b5598f83",
+      "id": "196d3824-a1b3-4530-892b-264a4dabcabf",
       "name": "Get_pdf_Binary",
       "webhookId": "2ba843cb-6e31-4364-a4a7-c255f03f1027",
       "credentials": {
@@ -1475,15 +1313,17 @@
             }
           ]
         },
-        "options": {}
+        "options": {
+          "fallbackOutput": "extra"
+        }
       },
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.3,
       "position": [
-        3936,
-        1312
+        -9280,
+        0
       ],
-      "id": "02b7f64f-d4d8-42d4-aacd-a74c8db34633",
+      "id": "f3aa3f41-5eec-4b96-aa58-30f8d5081bee",
       "name": "Switch_pdf_gate"
     },
     {
@@ -1516,10 +1356,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        3760,
-        1344
+        -9520,
+        208
       ],
-      "id": "7e80b4bb-5192-489c-9a5a-563088580c92",
+      "id": "3d89e469-cef7-4d68-9f9f-0cd724ae23a1",
       "name": "Set_Source"
     },
     {
@@ -1552,10 +1392,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        3568,
-        1424
+        -10224,
+        336
       ],
-      "id": "b9be59f1-fef6-4653-acba-9a5579c4edff",
+      "id": "1683363c-edc4-4105-b612-08283230238f",
       "name": "Set_Source_Gmail"
     },
     {
@@ -1580,10 +1420,10 @@
       "type": "n8n-nodes-base.gmailTrigger",
       "typeVersion": 1.3,
       "position": [
-        3312,
-        1424
+        -10448,
+        336
       ],
-      "id": "b9e100cf-930b-47b1-92d9-9083b34335dc",
+      "id": "12b122bf-7f46-4e77-8c09-8cef951aead0",
       "name": "Gmail Trigger",
       "credentials": {
         "gmailOAuth2": {
@@ -1622,10 +1462,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        3568,
-        1184
+        -10224,
+        96
       ],
-      "id": "3731544b-a11f-4cd1-a967-ea814cb3e586",
+      "id": "6c8857fb-33f6-47c3-baf6-a4f576c1b60e",
       "name": "Set_Source_Telegram"
     },
     {
@@ -1640,10 +1480,10 @@
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.2,
       "position": [
-        3328,
-        1184
+        -10448,
+        96
       ],
-      "id": "90c79ffe-9069-4b32-babe-5194492beeaa",
+      "id": "8ff77816-9180-45c9-bf59-9d8114e16ab5",
       "name": "Telegram Trigger",
       "webhookId": "8482bece-39d6-46d6-9e74-fa73db6f0c42",
       "credentials": {
@@ -1692,10 +1532,10 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        7264,
-        1296
+        -5456,
+        -256
       ],
-      "id": "5c095a94-ef46-41b8-8e61-9231a1e9bcdc",
+      "id": "ac9b9933-5b12-4349-bb7e-1098919a05a9",
       "name": "insert_line_items",
       "credentials": {
         "supabaseApi": {
@@ -1733,10 +1573,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        6000,
-        1296
+        -6720,
+        -256
       ],
-      "id": "e420d25e-f1c8-4ab4-b9f1-8777e8d76e9f",
+      "id": "98b49142-dc07-4e0b-81d3-650b796cbabc",
       "name": "invoice_id"
     },
     {
@@ -1756,10 +1596,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        6816,
-        1296
+        -5904,
+        -256
       ],
-      "id": "7948af91-9693-4813-afc3-73f556176eb8",
+      "id": "290625aa-14ca-45e8-b07c-63e079261b3d",
       "name": "Line_items"
     },
     {
@@ -1918,10 +1758,10 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        7472,
-        1296
+        -5248,
+        -256
       ],
-      "id": "ddc961ba-f7c5-4bc2-94b3-d50ed8afe01b",
+      "id": "a64887b0-b392-4cd5-8d5f-22cf4629f673",
       "name": "Append_Line_items",
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -1938,10 +1778,10 @@
       "type": "n8n-nodes-base.splitOut",
       "typeVersion": 1,
       "position": [
-        7056,
-        1296
+        -5664,
+        -256
       ],
-      "id": "9761aef0-05e5-4016-8178-a1bc9bfaa31c",
+      "id": "d0bd1866-3de8-4488-8b10-4561c0705cb4",
       "name": "Split Out"
     },
     {
@@ -2027,10 +1867,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        6416,
-        1296
+        -6304,
+        -256
       ],
-      "id": "9f7fe6af-58b3-4617-9703-1919c382227b",
+      "id": "497ecad5-09c3-4dfc-b558-a71383f9353f",
       "name": "Set_Header_Vars"
     },
     {
@@ -2040,87 +1880,238 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5088,
-        1360
+        -7552,
+        64
       ],
-      "id": "6c5c0aaf-babf-45e8-a08b-7ef8ab590cfa",
+      "id": "8b7b13c4-8886-4d7a-a853-ba730c1a1ff9",
       "name": "Parse_text_and_Array_Line_items"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "upload-document",
+        "responseMode": "responseNode",
+        "options": {
+          "binaryPropertyName": "file",
+          "rawBody": true
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -10960,
+        -288
+      ],
+      "id": "78932ccb-b315-48ed-9f0e-0cf211455436",
+      "name": "Webhook Upload Document",
+      "webhookId": "80d2d6dd-13f1-496c-9956-9bc4631389cd"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.filename }}",
+                    "rightValue": "pdf",
+                    "operator": {
+                      "type": "string",
+                      "operation": "contains"
+                    },
+                    "id": "is_pdf"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.filename }}",
+                    "rightValue": "pdf",
+                    "operator": {
+                      "type": "string",
+                      "operation": "notContains"
+                    },
+                    "id": "not_pdf"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        -10720,
+        -288
+      ],
+      "id": "8229d785-c9a1-4d70-9a21-2cd4bcefdbb6",
+      "name": "Switch: Is PDF?"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "file0",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -10416,
+        -416
+      ],
+      "id": "8a7d85d8-c633-4a13-8d47-e8f8794fb164",
+      "name": "Extract PDF Text"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "source_type",
+              "name": "source_type",
+              "value": "web_upload",
+              "type": "string"
+            },
+            {
+              "id": "chat_id",
+              "name": "chat_id",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "reply_to",
+              "name": "reply_to",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -10208,
+        -416
+      ],
+      "id": "b84ac08a-d871-4388-8674-68bc69170480",
+      "name": "Set_Source_Web_Upload"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Document received and processing started\",\n  \"status\": \"processing\",\n  \"data\": {\n    \"filename\": \"{{ $json.body?.filename || 'document.pdf' }}\",\n    \"received_at\": \"{{ $now.toISO() }}\"\n  }\n}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -9776,
+        -512
+      ],
+      "id": "ec743723-1c37-4038-84d8-ff1809d70c3b",
+      "name": "Respond_Web_Acknowledgment"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "success",
+              "name": "success",
+              "value": false,
+              "type": "boolean"
+            },
+            {
+              "id": "message",
+              "name": "message",
+              "value": "Only PDF files are accepted",
+              "type": "string"
+            },
+            {
+              "id": "error",
+              "name": "error",
+              "value": "Invalid file type. Please upload a PDF document.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -10432,
+        -144
+      ],
+      "id": "b9e463be-3131-480d-8a8d-74327c6590fe",
+      "name": "Set Error Response"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": false,\n  \"message\": \"{{ $json.message }}\",\n  \"error\": \"{{ $json.error }}\"\n}",
+        "options": {
+          "responseCode": "400",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -10208,
+        -144
+      ],
+      "id": "33093d12-4ca6-4045-9706-9af1a298cb0f",
+      "name": "Respond_Web_Error"
     }
   ],
   "connections": {
-    "Webhook_Web_Upload": {
-      "main": [
-        [
-          {
-            "node": "Set_Source_Web_Upload",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Set_Source_Web_Upload": {
-      "main": [
-        [
-          {
-            "node": "Switch_pdf_gate_web",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Switch_pdf_gate_web": {
-      "main": [
-        [
-          {
-            "node": "parse_pdf_data_extract_web",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "GPT4O Message Analysis",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "parse_pdf_data_extract_web": {
-      "main": [
-        [
-          {
-            "node": "GPT4O Message Analysis",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Aggregate_Order": {
-      "main": [
-        [
-          {
-            "node": "Switch_Source_Order",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Aggregate_Invoice": {
-      "main": [
-        [
-          {
-            "node": "Switch_Source_Invoice",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Switch_Source_Order": {
       "main": [
         [
@@ -2165,6 +2156,28 @@
         [
           {
             "node": "Respond_Web_Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate_Order": {
+      "main": [
+        [
+          {
+            "node": "Switch_Source_Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate_Invoice": {
+      "main": [
+        [
+          {
+            "node": "Switch_Source_Invoice",
             "type": "main",
             "index": 0
           }
@@ -2387,6 +2400,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "GPT4O Message Analysis",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -2521,11 +2541,135 @@
           }
         ]
       ]
+    },
+    "Webhook Upload Document": {
+      "main": [
+        [
+          {
+            "node": "Switch: Is PDF?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch: Is PDF?": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Set Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "Set_Source_Web_Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set_Source_Web_Upload": {
+      "main": [
+        [
+          {
+            "node": "Respond_Web_Acknowledgment",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set_Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Error Response": {
+      "main": [
+        [
+          {
+            "node": "Respond_Web_Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "pinData": {},
+  "pinData": {
+    "Webhook Upload Document": [
+      {
+        "headers": {
+          "connection": "upgrade",
+          "host": "n8n.pedicelmarketing.com",
+          "x-real-ip": "197.47.137.18",
+          "x-forwarded-for": "197.47.137.18",
+          "x-forwarded-proto": "https",
+          "content-length": "100694",
+          "sec-ch-ua-platform": "\"Windows\"",
+          "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+          "sec-ch-ua": "\"Google Chrome\";v=\"143\", \"Chromium\";v=\"143\", \"Not A(Brand\";v=\"24\"",
+          "content-type": "multipart/form-data; boundary=----WebKitFormBoundaryd9e9u9tuMlqSzQYK",
+          "sec-ch-ua-mobile": "?0",
+          "accept": "*/*",
+          "origin": "http://localhost:5173",
+          "sec-fetch-site": "cross-site",
+          "sec-fetch-mode": "cors",
+          "sec-fetch-dest": "empty",
+          "referer": "http://localhost:5173/",
+          "accept-encoding": "gzip, deflate, br, zstd",
+          "accept-language": "en-US,en;q=0.9,ar;q=0.8"
+        },
+        "params": {},
+        "query": {},
+        "body": {
+          "filename": "outlook_email_attachment(1).pdf",
+          "source": "web_upload"
+        },
+        "webhookUrl": "https://n8n.pedicelmarketing.com/webhook/upload-document",
+        "executionMode": "production"
+      }
+    ],
+    "Set_Source_Web_Upload": [
+      {
+        "numpages": 1,
+        "numrender": 1,
+        "info": {
+          "PDFFormatVersion": "1.5",
+          "Language": null,
+          "EncryptFilterName": null,
+          "IsLinearized": false,
+          "IsAcroFormPresent": false,
+          "IsXFAPresent": false,
+          "IsCollectionPresent": false,
+          "IsSignaturesPresent": false,
+          "Creator": "dbAutoTrack PDFWriter for .NET",
+          "CreationDate": "D:20240405124118+02'00'",
+          "ModDate": "D:20240405124118+02'00'"
+        },
+        "text": "BLUE1023 \nIQF Blueberry 4x2,5KG CTN \n08119050 015818 13/10/2025 150,00 kg 3,290 493,50 0 % B\nMANG1029 \nIQF Mango Chunks 4x2,5KG CTN \n08119085 015900 06/11/2025 250,00 kg 2,760 690,00 0 % B\nBERR1005 \nIQF Berry mix 5 4x2,5KG CTN \n08119095 015849 24/10/2025 160,00 kg 2,650 424,00 0 % B\nBERR1005 \nIQF Berry mix 5 4x2,5KG CTN \n08119095 016202 23/01/2026 40,00 kg 2,650 106,00 0 % B\nPINE1014 \nIQF Pineapple MD2 tidbits\n4x2,5KG CTN\n08119095 015173 01/06/2025 100,00 kg 2,440 244,00 0 % B\nESB92694298\nColdstore Trans-Europ Leo 1987 SL\nIndustrielaan 3320 Calle Trav. Carlos Mackintosch\nPuerta B1 Edf. Puerta del Mar\nBE - 3800 Sint-Truiden ES - 29670 Marbella (Málaga)\nBelgium Spain\n---\nAll goods remain the property of Berrymark nv/sa until payment is fully received.\nBerrymark nv/sa Nijverheidslaan 5120, BE-3800 Sint-Truiden, Belgium\nTel +32 11 36 00 13 Fax +32 11 67 30 11 VAT BE 0825 594 912 RPR Hasselt www.berrymark.be\nAll contractual relations with Berrymark nv/sa will be governed by the general terms and conditions (copie upon request and on our website)\n19361\nDate of invoice 05/04/2024\nYour VAT N°\nDelivered at : FCA Sold to :\nBuyer :\nFinal Destination: Spain\nItem code Item description Taric Code Lot N° BB date Quantity Unit Price Subtotal VAT code\nVAT-code B : VAT reverse charge\nIntra community delivery according to Article 39bis, 1°, 1° of the VAT directive \nVAT amount\nOur delivery note N° : delivered 05/04/2024 Payment terms : 30 days date of invoice\nOur warehouse N° : 100 Due date : 05/05/2024\nOur order N° 7019224: :\n: :\n: 78BNH2 :\nYour reference IQF Fruits: : 19361\nYour customer N° :\nE-INVOICE N°\nAmount, VAT excluded 1.957,50: EUR\n: 0,00 EUR\nTotal amount, VAT included 1.957,50: EUR\n1571\nBank details KBC bank, Belgium\nNet Weight 700,00 kg IBAN BE39 7310 1030 5819\nN° Truck/Trailer/Container SWIFT/BIC KREDBEBB\nReference Invoice N°\n401351",
+        "version": "5.3.31",
+        "source_type": "web_upload",
+        "chat_id": "",
+        "reply_to": ""
+      }
+    ]
+  },
   "meta": {
-    "templateCredsSetupCompleted": true,
     "instanceId": "142c6eed1836f6718bb543a63a8e649ca970b75ca5294799b6e0405b9496e811"
   }
 }
