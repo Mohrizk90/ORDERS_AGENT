@@ -4,21 +4,23 @@ import { getMonthlyReport } from '../../services/analyticsService';
 import { formatCurrency } from '../../utils/dataTransformers';
 import { CardLoadingSpinner } from '../common/LoadingSpinner';
 
-export default function MonthlyReport({ year = new Date().getFullYear() }) {
+export default function MonthlyReport({ period = 'last12months' }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const result = await getMonthlyReport(year);
+      const result = await getMonthlyReport(period);
       if (result.success) {
         setData(result.data || []);
       }
       setLoading(false);
     };
     fetchData();
-  }, [year]);
+  }, [period]);
+
+  const periodLabel = period === 'last12months' ? 'Last 12 Months' : `${period} Summary`;
 
   if (loading) {
     return (
@@ -29,7 +31,7 @@ export default function MonthlyReport({ year = new Date().getFullYear() }) {
           </div>
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Monthly Report</h3>
-            <p className="text-sm text-gray-500">{year} Summary</p>
+            <p className="text-sm text-gray-500">{periodLabel}</p>
           </div>
         </div>
         <CardLoadingSpinner />
@@ -62,7 +64,7 @@ export default function MonthlyReport({ year = new Date().getFullYear() }) {
           </div>
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Monthly Report</h3>
-            <p className="text-sm text-gray-500">{year} Summary</p>
+            <p className="text-sm text-gray-500">{periodLabel}</p>
           </div>
         </div>
         <button className="btn btn-secondary btn-sm">

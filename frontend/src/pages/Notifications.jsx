@@ -18,10 +18,12 @@ const alertColors = {
 };
 
 export default function Notifications() {
-  const [alerts, setAlerts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  // Temporarily disabled - alerts table not accessible
+  const [alerts] = useState([]);
+  const [loading] = useState(false);
   const toast = useToast();
 
+  /* DISABLED - Enable when alerts table is accessible
   const fetchAlerts = useCallback(async () => {
     setLoading(true);
     const result = await getAlerts();
@@ -34,6 +36,7 @@ export default function Notifications() {
   useEffect(() => {
     fetchAlerts();
   }, [fetchAlerts]);
+  */
 
   const handleMarkRead = async (alertId) => {
     const result = await markAlertRead(alertId);

@@ -40,21 +40,21 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 // Comparison Bar Chart (Orders vs Invoices)
-export function ComparisonChart({ year }) {
+export function ComparisonChart({ period }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const result = await getMonthlyData(year);
+      const result = await getMonthlyData(period);
       if (result.success) {
         setData(result.data || []);
       }
       setLoading(false);
     };
     fetchData();
-  }, [year]);
+  }, [period]);
 
   if (loading) {
     return (
@@ -86,21 +86,21 @@ export function ComparisonChart({ year }) {
 }
 
 // Trend Line Chart
-export function TrendChart({ year }) {
+export function TrendChart({ period }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const result = await getMonthlyData(year);
+      const result = await getMonthlyData(period);
       if (result.success) {
         setData(result.data || []);
       }
       setLoading(false);
     };
     fetchData();
-  }, [year]);
+  }, [period]);
 
   if (loading) {
     return (
@@ -146,21 +146,21 @@ export function TrendChart({ year }) {
 }
 
 // Area Chart
-export function AreaTrendChart({ year }) {
+export function AreaTrendChart({ period }) {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const result = await getMonthlyData(year);
+      const result = await getMonthlyData(period);
       if (result.success) {
         setData(result.data || []);
       }
       setLoading(false);
     };
     fetchData();
-  }, [year]);
+  }, [period]);
 
   if (loading) {
     return (
@@ -294,14 +294,14 @@ export function SparkLineChart({ data, color = '#3b82f6', height = 60 }) {
 }
 
 // Default export with all charts
-export default function Charts({ year = new Date().getFullYear() }) {
+export default function Charts({ period = 'last12months' }) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ComparisonChart year={year} />
-        <TrendChart year={year} />
+        <ComparisonChart period={period} />
+        <TrendChart period={period} />
       </div>
-      <AreaTrendChart year={year} />
+      <AreaTrendChart period={period} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <StatusDistributionChart type="orders" />
         <StatusDistributionChart type="invoices" />

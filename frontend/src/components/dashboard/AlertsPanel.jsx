@@ -24,6 +24,10 @@ const alertIconColors = {
 };
 
 export default function AlertsPanel() {
+  // Temporarily disabled - alerts table not accessible
+  return null;
+  
+  /* DISABLED - Enable when alerts table is accessible
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -124,4 +128,5 @@ export default function AlertsPanel() {
       </div>
     </div>
   );
+  */
 }

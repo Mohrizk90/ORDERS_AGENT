@@ -28,6 +28,10 @@ const activityColors = {
 };
 
 export default function RecentActivity() {
+  // Temporarily disabled - activity table not accessible
+  return null;
+  
+  /* DISABLED - Enable when activity table is accessible
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -102,4 +106,5 @@ export default function RecentActivity() {
       )}
     </div>
   );
+  */
 }

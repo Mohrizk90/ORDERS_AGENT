@@ -6,9 +6,11 @@ import { useRealtimeRefresh } from '../../hooks/useRealtimeSubscription';
 export default function Header({ title, onMenuClick, showMenuButton }) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [alerts, setAlerts] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  // Temporarily disabled - alerts table not accessible
+  const [alerts] = useState([]);
+  const [unreadCount] = useState(0);
 
+  /* DISABLED - Enable when alerts table is accessible
   const fetchAlerts = useCallback(async () => {
     const result = await getAlerts({ unreadOnly: false });
     if (result.success) {
@@ -24,6 +26,7 @@ export default function Header({ title, onMenuClick, showMenuButton }) {
 
   // Real-time subscription
   useRealtimeRefresh('alerts', fetchAlerts);
+  */
 
   const handleMarkAllRead = async () => {
     const unreadAlerts = alerts.filter(a => !a.read);

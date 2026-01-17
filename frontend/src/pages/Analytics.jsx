@@ -4,7 +4,7 @@ import Charts from '../components/analytics/Charts';
 import MonthlyReport from '../components/analytics/MonthlyReport';
 
 export default function Analytics() {
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedPeriod, setSelectedPeriod] = useState('last12months');
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
@@ -19,9 +19,10 @@ export default function Analytics() {
         <div className="flex items-center gap-3">
           <select 
             className="input max-w-[200px]"
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+            value={selectedPeriod}
+            onChange={(e) => setSelectedPeriod(e.target.value)}
           >
+            <option value="last12months">Last 12 Months</option>
             {years.map(year => (
               <option key={year} value={year}>{year}</option>
             ))}
@@ -34,10 +35,10 @@ export default function Analytics() {
       </div>
 
       {/* Charts */}
-      <Charts year={selectedYear} />
+      <Charts period={selectedPeriod} />
 
       {/* Monthly Report Table */}
-      <MonthlyReport year={selectedYear} />
+      <MonthlyReport period={selectedPeriod} />
     </div>
   );
 }

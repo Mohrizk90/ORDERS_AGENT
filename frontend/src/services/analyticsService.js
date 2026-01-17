@@ -5,14 +5,51 @@ import { createSuccessResult, createErrorResult } from '../utils/errorHandler';
 /**
  * Get monthly data for charts
  */
-export const getMonthlyData = async (year = new Date().getFullYear()) => {
+export const getMonthlyData = async (period = new Date().getFullYear()) => {
   if (USE_MOCK_DATA) {
     return createSuccessResult(mockMonthlyData);
   }
 
   try {
-    const startDate = `${year}-01-01`;
-    const endDate = `${year}-12-31`;
+    let startDate, endDate, months;
+    
+    // Handle "last12months" or specific year
+    if (period === 'last12months') {
+      // Calculate last 12 months
+      const now = new Date();
+      const last12 = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+      startDate = last12.toISOString().split('T')[0];
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+      
+      // Generate month labels for last 12 months
+      months = [];
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+        const year = date.getFullYear();
+        months.push({ 
+          label: `${monthName} ${year}`, 
+          month: date.getMonth(), 
+          year: year,
+          orders: 0,
+          invoices: 0
+        });
+      }
+    } else {
+      // Specific year
+      const year = parseInt(period);
+      startDate = `${year}-01-01`;
+      endDate = `${year}-12-31`;
+      
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      months = monthNames.map((month, index) => ({
+        label: month,
+        month: index,
+        year: year,
+        orders: 0,
+        invoices: 0,
+      }));
+    }
 
     const [ordersResult, invoicesResult] = await Promise.all([
       supabase
@@ -30,25 +67,36 @@ export const getMonthlyData = async (year = new Date().getFullYear()) => {
     if (ordersResult.error) throw ordersResult.error;
     if (invoicesResult.error) throw invoicesResult.error;
 
-    // Aggregate by month
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthlyData = monthNames.map((month, index) => ({
-      month,
-      orders: 0,
-      invoices: 0,
-    }));
-
     // Aggregate orders
     ordersResult.data?.forEach(order => {
-      const monthIndex = new Date(order.order_date).getMonth();
-      monthlyData[monthIndex].orders += order.total_amount || 0;
+      const orderDate = new Date(order.order_date);
+      const orderMonth = orderDate.getMonth();
+      const orderYear = orderDate.getFullYear();
+      
+      const monthData = months.find(m => m.month === orderMonth && m.year === orderYear);
+      if (monthData) {
+        monthData.orders += order.total_amount || 0;
+      }
     });
 
     // Aggregate invoices
     invoicesResult.data?.forEach(invoice => {
-      const monthIndex = new Date(invoice.invoice_date).getMonth();
-      monthlyData[monthIndex].invoices += invoice.total_amount || 0;
+      const invoiceDate = new Date(invoice.invoice_date);
+      const invoiceMonth = invoiceDate.getMonth();
+      const invoiceYear = invoiceDate.getFullYear();
+      
+      const monthData = months.find(m => m.month === invoiceMonth && m.year === invoiceYear);
+      if (monthData) {
+        monthData.invoices += invoice.total_amount || 0;
+      }
     });
+
+    // Return formatted data with month labels
+    const monthlyData = months.map(m => ({
+      month: m.label,
+      orders: m.orders,
+      invoices: m.invoices,
+    }));
 
     return createSuccessResult(monthlyData);
   } catch (error) {
@@ -181,7 +229,7 @@ export const getTopSuppliers = async ({ type = 'orders', limit = 10 } = {}) => {
 /**
  * Get monthly report data
  */
-export const getMonthlyReport = async (year = new Date().getFullYear()) => {
+export const getMonthlyReport = async (period = new Date().getFullYear()) => {
   if (USE_MOCK_DATA) {
     const report = mockMonthlyData.map((month, index) => ({
       month: month.month,
@@ -194,8 +242,49 @@ export const getMonthlyReport = async (year = new Date().getFullYear()) => {
   }
 
   try {
-    const startDate = `${year}-01-01`;
-    const endDate = `${year}-12-31`;
+    let startDate, endDate, months;
+    
+    // Handle "last12months" or specific year
+    if (period === 'last12months') {
+      // Calculate last 12 months
+      const now = new Date();
+      const last12 = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+      startDate = last12.toISOString().split('T')[0];
+      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+      
+      // Generate month labels for last 12 months
+      months = [];
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+        const year = date.getFullYear();
+        months.push({ 
+          label: `${monthName} ${year}`, 
+          month: date.getMonth(), 
+          year: year,
+          orderCount: 0,
+          orderAmount: 0,
+          invoiceCount: 0,
+          invoiceAmount: 0
+        });
+      }
+    } else {
+      // Specific year
+      const year = parseInt(period);
+      startDate = `${year}-01-01`;
+      endDate = `${year}-12-31`;
+      
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      months = monthNames.map((month, index) => ({
+        label: month,
+        month: index,
+        year: year,
+        orderCount: 0,
+        orderAmount: 0,
+        invoiceCount: 0,
+        invoiceAmount: 0,
+      }));
+    }
 
     const [ordersResult, invoicesResult] = await Promise.all([
       supabase
@@ -213,26 +302,38 @@ export const getMonthlyReport = async (year = new Date().getFullYear()) => {
     if (ordersResult.error) throw ordersResult.error;
     if (invoicesResult.error) throw invoicesResult.error;
 
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const report = monthNames.map(month => ({
-      month,
-      orderCount: 0,
-      orderAmount: 0,
-      invoiceCount: 0,
-      invoiceAmount: 0,
-    }));
-
     ordersResult.data?.forEach(order => {
-      const monthIndex = new Date(order.order_date).getMonth();
-      report[monthIndex].orderCount += 1;
-      report[monthIndex].orderAmount += order.total_amount || 0;
+      const orderDate = new Date(order.order_date);
+      const orderMonth = orderDate.getMonth();
+      const orderYear = orderDate.getFullYear();
+      
+      const monthData = months.find(m => m.month === orderMonth && m.year === orderYear);
+      if (monthData) {
+        monthData.orderCount += 1;
+        monthData.orderAmount += order.total_amount || 0;
+      }
     });
 
     invoicesResult.data?.forEach(invoice => {
-      const monthIndex = new Date(invoice.invoice_date).getMonth();
-      report[monthIndex].invoiceCount += 1;
-      report[monthIndex].invoiceAmount += invoice.total_amount || 0;
+      const invoiceDate = new Date(invoice.invoice_date);
+      const invoiceMonth = invoiceDate.getMonth();
+      const invoiceYear = invoiceDate.getFullYear();
+      
+      const monthData = months.find(m => m.month === invoiceMonth && m.year === invoiceYear);
+      if (monthData) {
+        monthData.invoiceCount += 1;
+        monthData.invoiceAmount += invoice.total_amount || 0;
+      }
     });
+
+    // Return formatted report with month labels
+    const report = months.map(m => ({
+      month: m.label,
+      orderCount: m.orderCount,
+      orderAmount: m.orderAmount,
+      invoiceCount: m.invoiceCount,
+      invoiceAmount: m.invoiceAmount,
+    }));
 
     return createSuccessResult(report);
   } catch (error) {
